@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evcil Hayvan Detay - PetMap</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/pets.css">
+    <link rel="stylesheet" href="css/animations.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container header-container">
+            <div class="header-left-group">
+                <div class="logo">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path
+                            d="M12 2C8.13 2 5 5.13 5 9C5 14.25 12 22 12 22C12 22 19 14.25 19 9C19 5.13 15.87 2 12 2ZM12 11.5C10.62 11.5 9.5 10.38 9.5 9C9.5 7.62 10.62 6.5 12 6.5C13.38 6.5 14.5 7.62 14.5 9C14.5 10.38 13.38 11.5 12 11.5Z"
+                            fill="currentColor" />
+                        <circle cx="9" cy="8" r="1.5" fill="white" />
+                        <circle cx="15" cy="8" r="1.5" fill="white" />
+                    </svg>
+                    <span>PetMap</span>
+                </div>
+                <div id="user-profile-badge" style="display: none;"></div>
+            </div>
+            <nav>
+                <a href="index.html">Ana Sayfa</a>
+                <a href="pets.html">Evcil Hayvanlarım</a>
+                <a href="index.html#map-module">Harita</a>
+                <button id="logout-btn" class="btn-logout" style="display: none;">Çıkış</button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <section class="pet-detail-section">
+        <div class="container">
+            <!-- Back Button -->
+            <a href="pets.html" class="btn btn-secondary"
+                style="display: inline-flex; align-items: center; gap: 8px; margin-bottom: 20px;">
+                ← Geri Dön
+            </a>
+
+            <!-- Pet Header -->
+            <div id="pet-header" class="pet-detail-header">
+                <!-- Will be populated by JavaScript -->
+            </div>
+
+            <!-- Dashboard Grid -->
+            <div class="dashboard-grid">
+                <!-- Basic Info Card -->
+                <div class="dashboard-card">
+                    <h3>📋 Temel Bilgiler</h3>
+                    <div id="basic-info" class="info-grid">
+                        <!-- Will be populated -->
+                    </div>
+                </div>
+
+                <!-- Health Score Card -->
+                <div class="dashboard-card">
+                    <h3>🎯 Sağlık Skoru</h3>
+                    <div id="health-score-display" class="health-score-container">
+                        <!-- Will be populated -->
+                    </div>
+                </div>
+
+                <!-- Location Card -->
+                <div class="dashboard-card">
+                    <h3>📍 Konum Takibi</h3>
+                    <div id="location-info">
+                        <!-- Will be populated -->
+                    </div>
+                    <div id="pet-map" class="pet-map-container"></div>
+                </div>
+            </div>
+
+            <!-- AI Health Monitoring Section -->
+            <div class="dashboard-card" style="margin-bottom: 25px;">
+                <h3>🤖 AI Destekli Sağlık Takibi</h3>
+
+                <!-- AI Alerts -->
+                <div style="margin-bottom: 30px;">
+                    <h4 style="color: #4a5568; margin-bottom: 15px;">⚠️ Akıllı Uyarılar ve Öneriler</h4>
+                    <div id="ai-alerts" class="ai-alerts-container">
+                        <!-- Will be populated -->
+                    </div>
+                </div>
+
+                <!-- Health Trends Charts -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px;">
+                    <div>
+                        <h4 style="color: #4a5568; margin-bottom: 15px;">📊 Ağırlık Trendi</h4>
+                        <div class="chart-container">
+                            <canvas id="weight-chart"></canvas>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 style="color: #4a5568; margin-bottom: 15px;">🏃 Aktivite Trendi</h4>
+                        <div class="chart-container">
+                            <canvas id="activity-chart"></canvas>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 style="color: #4a5568; margin-bottom: 15px;">🍽️ İştah Trendi</h4>
+                        <div class="chart-container">
+                            <canvas id="appetite-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI Analysis Button -->
+                <button id="ai-analyze-btn" class="btn btn-primary"
+                    style="width: 100%; margin-top: 25px; padding: 15px; font-size: 1.1rem;">
+                    🤖 AI Sağlık Analizi Yap
+                </button>
+                <div id="ai-analysis-result"
+                    style="display: none; margin-top: 20px; padding: 20px; background: #f0f7ff; border-radius: 12px; border-left: 4px solid var(--primary);">
+                    <h4 style="margin: 0 0 10px 0; color: #2d3748;">💡 AI Analiz Sonucu</h4>
+                    <div id="ai-analysis-content" style="color: #4a5568; line-height: 1.6;"></div>
+                </div>
+            </div>
+
+            <!-- Health Records Section -->
+            <div class="dashboard-grid">
+                <!-- Vaccines -->
+                <div class="dashboard-card">
+                    <h3>💉 Aşı Kayıtları</h3>
+                    <div id="vaccines-table">
+                        <!-- Will be populated -->
+                    </div>
+                </div>
+
+                <!-- Medications -->
+                <div class="dashboard-card">
+                    <h3>💊 İlaçlar</h3>
+                    <div id="medications-table">
+                        <!-- Will be populated -->
+                    </div>
+                </div>
+
+                <!-- Diseases -->
+                <div class="dashboard-card">
+                    <h3>🏥 Hastalık Geçmişi</h3>
+                    <div id="diseases-list">
+                        <!-- Will be populated -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gallery Section -->
+            <div class="dashboard-card">
+                <h3>📸 Fotoğraf Galerisi</h3>
+                <div id="photo-gallery" class="photo-gallery">
+                    <!-- Will be populated -->
+                </div>
+            </div>
+
+            <!-- Notes Section -->
+            <div class="dashboard-grid">
+                <div class="dashboard-card">
+                    <h3>🍽️ Beslenme Talimatları</h3>
+                    <p id="feeding-instructions" style="color: #4a5568; line-height: 1.6;"></p>
+                </div>
+
+                <div class="dashboard-card">
+                    <h3>🐾 Davranış Notları</h3>
+                    <p id="behavior-notes" style="color: #4a5568; line-height: 1.6;"></p>
+                </div>
+
+                <div class="dashboard-card">
+                    <h3>🏥 Veteriner Notları</h3>
+                    <p id="vet-notes" style="color: #4a5568; line-height: 1.6;"></p>
+                </div>
+
+                <div class="dashboard-card">
+                    <h3>🚨 Acil Durum Bilgileri</h3>
+                    <p id="emergency-info" style="color: #dc2626; font-weight: 600; line-height: 1.6;"></p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2024 PetMap - Akıllı Şehir Çözümleri</p>
+        </div>
+    </footer>
+
+    <script src="js/pets.js"></script>
+    <script src="js/pet-detail.js"></script>
+</body>
+
+</html>

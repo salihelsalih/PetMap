@@ -1,0 +1,79 @@
+/* Animations */
+@keyframes slideOutLeft {
+    from {
+        transform: translateX(0);
+        opacity: 1;
+    }
+
+    to {
+        transform: translateX(-20px);
+        opacity: 0;
+    }
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(20px);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.slide-out {
+    animation: slideOutLeft 0.5s ease forwards;
+}
+
+.slide-in {
+    animation: slideInRight 0.5s ease forwards;
+}
+
+/* Chat Styling Enhancements */
+#report-chat-window {
+    scrollbar-width: thin;
+    scrollbar-color: #ddd transparent;
+}
+
+#report-chat-window::-webkit-scrollbar {
+    width: 6px;
+}
+
+#report-chat-window::-webkit-scrollbar-thumb {
+    background-color: #ddd;
+    border-radius: 3px;
+}
+
+/* Notification Toast */
+.shelter-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: white;
+    padding: 15px 20px;
+    border-radius: 12px;
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    z-index: 1000;
+    transform: translateX(120%);
+    transition: transform 0.5s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+}
+
+.shelter-notification.show {
+    transform: translateX(0);
+}
+
+.shelter-notification .icon {
+    width: 40px;
+    height: 40px;
+    background: #eef2f6;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+}

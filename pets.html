@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evcil Hayvanlarım - PetMap</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/pets.css">
+    <link rel="stylesheet" href="css/animations.css">
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container header-container">
+            <div class="header-left-group">
+                <div class="logo">
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path
+                            d="M12 2C8.13 2 5 5.13 5 9C5 14.25 12 22 12 22C12 22 19 14.25 19 9C19 5.13 15.87 2 12 2ZM12 11.5C10.62 11.5 9.5 10.38 9.5 9C9.5 7.62 10.62 6.5 12 6.5C13.38 6.5 14.5 7.62 14.5 9C14.5 10.38 13.38 11.5 12 11.5Z"
+                            fill="currentColor" />
+                        <circle cx="9" cy="8" r="1.5" fill="white" />
+                        <circle cx="15" cy="8" r="1.5" fill="white" />
+                    </svg>
+                    <span>PetMap</span>
+                </div>
+                <div id="user-profile-badge" style="display: none;"></div>
+            </div>
+            <nav>
+                <a href="index.html">Ana Sayfa</a>
+                <a href="pets.html" class="active">Evcil Hayvanlarım</a>
+                <a href="index.html#map-module">Harita</a>
+                <button id="logout-btn" class="btn-logout" style="display: none;">Çıkış</button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <section class="pets-section">
+        <div class="container">
+            <div class="page-header">
+                <div>
+                    <h1>🐾 Evcil Hayvanlarım</h1>
+                    <p class="subtitle">Tüm dostlarınızı tek yerden yönetin</p>
+                </div>
+                <button class="btn btn-primary" onclick="openAddPetModal()">
+                    <span style="font-size: 1.2rem; margin-right: 8px;">+</span>
+                    Yeni Hayvan Ekle
+                </button>
+            </div>
+
+            <!-- Pets Grid -->
+            <div id="pets-grid" class="pets-grid">
+                <!-- Pet cards will be injected here -->
+            </div>
+
+            <!-- Empty State -->
+            <div id="empty-state" class="empty-state" style="display: none;">
+                <div style="font-size: 5rem; margin-bottom: 20px;">🐕</div>
+                <h2>Henüz evcil hayvan eklemediniz</h2>
+                <p>Hemen ilk dostunuzu ekleyerek başlayın!</p>
+                <button class="btn btn-primary" onclick="openAddPetModal()" style="margin-top: 20px;">
+                    Hayvan Ekle
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Add Pet Modal -->
+    <div id="add-pet-modal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h2>🐾 Yeni Evcil Hayvan Ekle</h2>
+                <span class="close" onclick="closeAddPetModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <form id="add-pet-form" onsubmit="handleAddPet(event)">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>İsim *</label>
+                            <input type="text" id="pet-name" required placeholder="Örn: Karabaş">
+                        </div>
+                        <div class="form-group">
+                            <label>Tür *</label>
+                            <select id="pet-species" required>
+                                <option value="">Seçiniz</option>
+                                <option value="Köpek">🐕 Köpek</option>
+                                <option value="Kedi">🐈 Kedi</option>
+                                <option value="Kuş">🦜 Kuş</option>
+                                <option value="Tavşan">🐰 Tavşan</option>
+                                <option value="Diğer">🐾 Diğer</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Cins</label>
+                            <input type="text" id="pet-breed" placeholder="Örn: Golden Retriever">
+                        </div>
+                        <div class="form-group">
+                            <label>Cinsiyet</label>
+                            <select id="pet-gender">
+                                <option value="Erkek">♂️ Erkek</option>
+                                <option value="Dişi">♀️ Dişi</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Doğum Tarihi</label>
+                            <input type="date" id="pet-birthdate">
+                        </div>
+                        <div class="form-group">
+                            <label>Ağırlık (kg)</label>
+                            <input type="number" id="pet-weight" step="0.1" placeholder="Örn: 28.5">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Mikroçip Numarası</label>
+                        <input type="text" id="pet-microchip" placeholder="Örn: TR123456789">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Fotoğraf URL</label>
+                        <input type="url" id="pet-photo" placeholder="https://example.com/photo.jpg">
+                        <small style="color: #666; display: block; margin-top: 5px;">
+                            Varsayılan emoji kullanılacak
+                        </small>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" onclick="closeAddPetModal()">İptal</button>
+                        <button type="submit" class="btn btn-primary">Kaydet</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div id="delete-modal" class="modal">
+        <div class="modal-content" style="max-width: 400px;">
+            <div class="modal-header">
+                <h2>⚠️ Emin misiniz?</h2>
+                <span class="close" onclick="closeDeleteModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <p>Bu evcil hayvanı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.</p>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeDeleteModal()">İptal</button>
+                    <button class="btn btn-danger" onclick="confirmDelete()">Sil</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer class="footer">
+        <div class="container">
+            <p>&copy; 2024 PetMap - Akıllı Şehir Çözümleri</p>
+        </div>
+    </footer>
+
+    <script src="js/pets.js"></script>
+</body>
+
+</html>

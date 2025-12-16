@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="tr">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PetMap Giriş / Kayıt</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css?v=1.1">
+</head>
+
+<body class="login-body">
+
+    <div class="login-container">
+        <div class="login-header">
+            <h1 class="login-logo">🐾 PetMap</h1>
+            <p>Akıllı Şehir Hayvan Destek Platformu</p>
+        </div>
+
+        <!-- Toggle Switch -->
+        <div class="auth-toggle">
+            <button id="toggle-login" class="active" onclick="showForm('login')">Giriş Yap</button>
+            <button id="toggle-register" onclick="showForm('register')">Kayıt Ol</button>
+        </div>
+
+        <!-- LOGIN FORM -->
+        <form id="login-form" onsubmit="handleLogin(event)" class="auth-form">
+            <div class="form-group">
+                <label>E-Posta Adresi</label>
+                <input type="email" id="login-email" placeholder="ornek@email.com" required>
+            </div>
+            <div class="form-group">
+                <label>Şifre</label>
+                <input type="password" id="login-password" placeholder="••••••••" required>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Giriş Yap</button>
+        </form>
+
+        <!-- REGISTER FORM -->
+        <form id="register-form" onsubmit="handleRegister(event)" class="auth-form" style="display: none;">
+            <p style="text-align: center; margin-bottom: 15px; font-weight: 500;">Rolünüzü Seçin</p>
+
+            <div class="role-grid">
+                <div class="role-card" onclick="selectRole(this, 'veteriner')">
+                    <div class="role-icon">⚕️</div>
+                    <h3>Veteriner</h3>
+                </div>
+                <div class="role-card" onclick="selectRole(this, 'hayvansever')">
+                    <div class="role-icon">💙</div>
+                    <h3>Hayvansever</h3>
+                </div>
+                <div class="role-card" onclick="selectRole(this, 'sahip')">
+                    <div class="role-icon">🏠</div>
+                    <h3>Hayvan Sahibi</h3>
+                </div>
+                <div class="role-card" onclick="selectRole(this, 'barinak')">
+                    <div class="role-icon">🏢</div>
+                    <h3>Barınak</h3>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>E-Posta Adresi</label>
+                <input type="email" id="reg-email" placeholder="ornek@email.com" required>
+            </div>
+            <div class="form-group">
+                <label>Şifre</label>
+                <input type="password" id="reg-password" placeholder="••••••••" required>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block">Kayıt Ol ve Giriş Yap</button>
+        </form>
+
+    </div>
+
+    <!-- Styles for Toggle were missing in style.css, adding inline for safety or update style.css next -->
+    <style>
+        .auth-toggle {
+            display: flex;
+            background: #f1f3f5;
+            padding: 5px;
+            border-radius: 12px;
+            margin-bottom: 25px;
+        }
+
+        .auth-toggle button {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            background: transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            color: #666;
+            transition: all 0.2s;
+        }
+
+        .auth-toggle button.active {
+            background: white;
+            color: var(--primary);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+        }
+    </style>
+
+    <script>
+        let selectedRegisterRole = null;
+
+        // Initialize DB
+        const getUsers = () => JSON.parse(localStorage.getItem('petmap_users') || '[]');
+        const saveUser = (user) => {
+            const users = getUsers();
+            users.push(user);
+            localStorage.setItem('petmap_users', JSON.stringify(users));
+        };
+
+        function showForm(type) {
+            document.getElementById('login-form').style.display = type === 'login' ? 'block' : 'none';
+            document.getElementById('register-form').style.display = type === 'register' ? 'block' : 'none';
+
+            document.getElementById('toggle-login').className = type === 'login' ? 'active' : '';
+            document.getElementById('toggle-register').className = type === 'register' ? 'active' : '';
+
+            // Clear any existing messages
+            hideMessage();
+        }
+
+        function selectRole(element, role) {
+            document.querySelectorAll('.role-card').forEach(c => c.classList.remove('active'));
+            element.classList.add('active');
+            selectedRegisterRole = role;
+        }
+
+        // Helper: Show Message
+        function showMessage(text, type = 'error') {
+            let msgBox = document.getElementById('auth-message');
+            if (!msgBox) {
+                msgBox = document.createElement('div');
+                msgBox.id = 'auth-message';
+                msgBox.style.padding = '12px';
+                msgBox.style.marginTop = '15px';
+                msgBox.style.borderRadius = '8px';
+                msgBox.style.textAlign = 'center';
+                msgBox.style.fontWeight = '500';
+                document.querySelector('.login-container').appendChild(msgBox);
+            }
+
+            msgBox.style.display = 'block';
+            msgBox.innerText = text;
+
+            if (type === 'error') {
+                msgBox.style.background = '#ffebee';
+                msgBox.style.color = '#c62828';
+                msgBox.style.border = '1px solid #ef9a9a';
+            } else {
+                msgBox.style.background = '#e8f5e9';
+                msgBox.style.color = '#2e7d32';
+                msgBox.style.border = '1px solid #a5d6a7';
+            }
+        }
+
+        function hideMessage() {
+            const msgBox = document.getElementById('auth-message');
+            if (msgBox) msgBox.style.display = 'none';
+        }
+
+        function handleRegister(e) {
+            e.preventDefault();
+            hideMessage();
+
+            if (!selectedRegisterRole) {
+                showMessage("Lütfen bir rol seçiniz!");
+                return;
+            }
+
+            const email = document.getElementById('reg-email').value;
+            const password = document.getElementById('reg-password').value;
+
+            // Check if user exists
+            const users = getUsers();
+            if (users.find(u => u.email === email)) {
+                showMessage("Bu e-posta ile zaten kayıtlı bir kullanıcı var.");
+                return;
+            }
+
+            const newUser = {
+                email,
+                password,
+                role: selectedRegisterRole,
+                name: email.split('@')[0], // Simple name derived
+                id: Date.now()
+            };
+
+            saveUser(newUser);
+
+            // Auto Login - SESSION STORAGE ONLY for active session
+            sessionStorage.setItem('currentUser', JSON.stringify(newUser));
+            sessionStorage.setItem('userRole', newUser.role);
+
+            // Remove from localStorage if it exists to clean up old behaviors
+            localStorage.removeItem('currentUser');
+            localStorage.removeItem('userRole');
+
+            showMessage("Kayıt başarılı! Yönlendiriliyorsunuz...", 'success');
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 1000);
+        }
+
+        function handleLogin(e) {
+            e.preventDefault();
+            hideMessage();
+
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+
+            const users = getUsers();
+
+            if (users.length === 0) {
+                showMessage("Kayıtlı kullanıcı bulunamadı. Lütfen önce kayıt olun.");
+                return;
+            }
+
+            const user = users.find(u => u.email === email && u.password === password);
+
+            if (user) {
+                // SESSION STORAGE ONLY for active session
+                sessionStorage.setItem('currentUser', JSON.stringify(user));
+                sessionStorage.setItem('userRole', user.role);
+
+                // Remove from localStorage if it exists
+                localStorage.removeItem('currentUser');
+                localStorage.removeItem('userRole');
+
+                showMessage("Giriş başarılı! Yönlendiriliyorsunuz...", 'success');
+                setTimeout(() => {
+                    window.location.href = 'index.html';
+                }, 1000);
+            } else {
+                showMessage("Hatalı e-posta veya şifre!");
+            }
+        }
+    </script>
+</body>
+
+</html>
