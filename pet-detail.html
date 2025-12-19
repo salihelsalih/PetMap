@@ -191,14 +191,33 @@
         </div>
     </section>
 
+    <!-- Edit Record Modal -->
+    <div id="edit-record-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Kayıt Düzenle</h3>
+                <span class="close-modal" onclick="closeEditModal()">&times;</span>
+            </div>
+            <form id="edit-record-form" onsubmit="handleSaveRecord(event)">
+                <div id="modal-form-content">
+                    <!-- Form fields will be injected here -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeEditModal()">İptal</button>
+                    <button type="submit" class="btn btn-primary">Kaydet</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <footer class="footer">
         <div class="container">
             <p>&copy; 2024 PetMap - Akıllı Şehir Çözümleri</p>
         </div>
     </footer>
 
-    <script src="js/pets.js"></script>
-    <script src="js/pet-detail.js"></script>
+    <script src="js/pets.js?v=1.3"></script>
+    <script src="js/pet-detail.js?v=1.3"></script>
 </body>
 
 </html>

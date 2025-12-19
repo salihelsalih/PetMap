@@ -4,6 +4,7 @@ let currentPet = null;
 let weightChart = null;
 let activityChart = null;
 let appetiteChart = null;
+let isEditMode = false;
 
 // Get pet ID from URL
 function getPetIdFromURL() {
@@ -13,6 +14,7 @@ function getPetIdFromURL() {
 
 // Load and display pet details
 function loadPetDetail() {
+    console.log("loadPetDetail started, isEditMode:", isEditMode);
     const petId = getPetIdFromURL();
     if (!petId) {
         window.location.href = 'pets.html';
@@ -26,17 +28,22 @@ function loadPetDetail() {
         return;
     }
 
-    renderPetHeader();
-    renderBasicInfo();
-    renderHealthScore();
-    renderLocation();
-    renderAIAlerts();
-    renderHealthCharts();
-    renderVaccines();
-    renderMedications();
-    renderDiseases();
-    renderGallery();
-    renderNotes();
+    try {
+        renderPetHeader();
+        renderBasicInfo();
+        renderHealthScore();
+        renderLocation();
+        renderAIAlerts();
+        renderHealthCharts();
+        renderVaccines();
+        renderMedications();
+        renderDiseases();
+        renderGallery();
+        renderNotes();
+        console.log("loadPetDetail completed successfully");
+    } catch (error) {
+        console.error("Error in loadPetDetail:", error);
+    }
 }
 
 // Render pet header
@@ -68,8 +75,8 @@ function renderPetHeader() {
                 ID: ${currentPet.id}
             </div>
             <div class="pet-detail-actions">
-                <button class="btn btn-secondary" onclick="window.location.href='pets.html'">
-                    ← Listeye Dön
+                <button class="btn ${isEditMode ? 'btn-success' : 'btn-primary'}" onclick="toggleEditMode()">
+                    ${isEditMode ? '✅ Düzenlemeyi Bitir' : '📝 Düzenle'}
                 </button>
                 <button class="btn btn-danger" onclick="deletePet()">
                     🗑️ Sil
@@ -77,6 +84,12 @@ function renderPetHeader() {
             </div>
         </div>
     `;
+}
+
+// Toggle Edit Mode
+function toggleEditMode() {
+    isEditMode = !isEditMode;
+    loadPetDetail(); // Re-render everything
 }
 
 // Render basic info
@@ -89,25 +102,33 @@ function renderBasicInfo() {
         <div class="info-row">
             <span class="info-label">Doğum Tarihi</span>
             <span class="info-value">${currentPet.birthDate || 'Bilinmiyor'}</span>
+            ${isEditMode ? `<button class="btn-edit-small" onclick="openEditModal('basic', 'birthDate')">✏️</button>` : ''}
         </div>
         <div class="info-row">
             <span class="info-label">Cinsiyet</span>
             <span class="info-value">${currentPet.gender}</span>
+            ${isEditMode ? `<button class="btn-edit-small" onclick="openEditModal('basic', 'gender')">✏️</button>` : ''}
         </div>
         <div class="info-row">
             <span class="info-label">Ağırlık</span>
             <span class="info-value">${currentPet.weight ? currentPet.weight + ' kg' : 'Bilinmiyor'}</span>
+            ${isEditMode ? `<button class="btn-edit-small" onclick="openEditModal('basic', 'weight')">✏️</button>` : ''}
         </div>
         <div class="info-row">
             <span class="info-label">Renk</span>
             <span class="info-value">${currentPet.color || 'Belirtilmemiş'}</span>
+            ${isEditMode ? `<button class="btn-edit-small" onclick="openEditModal('basic', 'color')">✏️</button>` : ''}
         </div>
         <div class="info-row">
             <span class="info-label">Mikroçip</span>
             <span class="info-value" style="font-family: monospace;">${currentPet.microchipId || 'Yok'}</span>
+            ${isEditMode ? `<button class="btn-edit-small" onclick="openEditModal('basic', 'microchipId')">✏️</button>` : ''}
         </div>
         <div class="info-row" style="flex-direction: column; align-items: flex-start;">
-            <span class="info-label">Alerjiler</span>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span class="info-label">Alerjiler</span>
+                ${isEditMode ? `<button class="btn-edit-small" onclick="openEditModal('basic', 'allergies')">✏️</button>` : ''}
+            </div>
             <div style="margin-top: 8px;">${allergiesHTML}</div>
         </div>
     `;
@@ -222,202 +243,287 @@ function renderAIAlerts() {
 
 // Render health charts
 function renderHealthCharts() {
+    console.log("renderHealthCharts called");
+
+    // Destroy existing charts if they exist
+    if (weightChart) weightChart.destroy();
+    if (activityChart) activityChart.destroy();
+    if (appetiteChart) appetiteChart.destroy();
+
     // Weight Chart
     if (currentPet.weightHistory && currentPet.weightHistory.length > 0) {
-        const ctx = document.getElementById('weight-chart').getContext('2d');
-        const data = currentPet.weightHistory;
-
-        weightChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: data.map(d => d.date),
-                datasets: [{
-                    label: 'Ağırlık (kg)',
-                    data: data.map(d => d.weight),
-                    borderColor: '#3b82f6',
-                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                    tension: 0.4,
-                    fill: true
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false }
+        const canvas = document.getElementById('weight-chart');
+        if (canvas) {
+            const ctx = canvas.getContext('2d');
+            weightChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: currentPet.weightHistory.map(d => d.date),
+                    datasets: [{
+                        label: 'Ağırlık (kg)',
+                        data: currentPet.weightHistory.map(d => d.weight),
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
                 },
-                scales: {
-                    y: {
-                        beginAtZero: false,
-                        ticks: {
-                            callback: function (value) {
-                                return value + ' kg';
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false,
+                            ticks: {
+                                callback: function (value) {
+                                    return value + ' kg';
+                                }
                             }
                         }
                     }
                 }
-            }
-        });
+            });
+        }
     }
 
     // Activity Chart
     if (currentPet.activityHistory && currentPet.activityHistory.length > 0) {
-        const ctx = document.getElementById('activity-chart').getContext('2d');
-        const data = currentPet.activityHistory;
-
-        activityChart = new Chart(ctx, {
-            type: 'bar',
-            data: {
-                labels: data.map(d => d.date),
-                datasets: [{
-                    label: 'Adım Sayısı',
-                    data: data.map(d => d.steps),
-                    backgroundColor: '#10b981',
-                    borderRadius: 6
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false }
+        const canvas = document.getElementById('activity-chart');
+        if (canvas) {
+            const ctx = canvas.getContext('2d');
+            activityChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: currentPet.activityHistory.map(d => d.date),
+                    datasets: [{
+                        label: 'Adım Sayısı',
+                        data: currentPet.activityHistory.map(d => d.steps),
+                        backgroundColor: '#10b981',
+                        borderRadius: 6
+                    }]
                 },
-                scales: {
-                    y: {
-                        beginAtZero: true
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
                     }
                 }
-            }
-        });
+            });
+        }
     }
 
     // Appetite Chart
     if (currentPet.appetiteHistory && currentPet.appetiteHistory.length > 0) {
-        const ctx = document.getElementById('appetite-chart').getContext('2d');
-        const data = currentPet.appetiteHistory;
-
-        appetiteChart = new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: data.map(d => d.date),
-                datasets: [{
-                    label: 'İştah Seviyesi',
-                    data: data.map(d => d.level),
-                    borderColor: '#f59e0b',
-                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                    tension: 0.4,
-                    fill: true
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false }
+        const canvas = document.getElementById('appetite-chart');
+        if (canvas) {
+            const ctx = canvas.getContext('2d');
+            appetiteChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: currentPet.appetiteHistory.map(d => d.date),
+                    datasets: [{
+                        label: 'İştah Seviyesi',
+                        data: currentPet.appetiteHistory.map(d => d.level),
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
                 },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        max: 5,
-                        ticks: {
-                            stepSize: 1
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 5,
+                            ticks: {
+                                stepSize: 1
+                            }
                         }
                     }
                 }
-            }
-        });
+            });
+        }
     }
 }
 
 // Render vaccines
 function renderVaccines() {
+    console.log("renderVaccines called, isEditMode:", isEditMode);
+    const container = document.getElementById('vaccines-table');
+    if (!container) return;
+
     const vaccines = currentPet.vaccines || [];
+    let html = '';
 
     if (vaccines.length === 0) {
-        document.getElementById('vaccines-table').innerHTML = '<p style="color: #718096;">Henüz aşı kaydı bulunmuyor.</p>';
-        return;
+        html = '<p style="color: #718096;">Henüz aşı kaydı bulunmuyor.</p>';
+    } else {
+        html = `
+            <div class="table-responsive">
+                <table class="health-table">
+                    <thead>
+                        <tr>
+                            <th>Aşı Adı</th>
+                            <th>Tarih</th>
+                            <th>Sonraki</th>
+                            <th>Veteriner</th>
+                            ${isEditMode ? '<th>İşlem</th>' : ''}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${vaccines.map((v, index) => `
+                            <tr>
+                                <td><strong>${v.name}</strong></td>
+                                <td>${v.date}</td>
+                                <td><span class="badge badge-info">${v.nextDate}</span></td>
+                                <td>${v.vet}</td>
+                                ${isEditMode ? `
+                                    <td>
+                                        <div style="display: flex; gap: 5px;">
+                                            <button class="btn-edit-small" onclick="openEditModal('vaccine', ${index})">✏️</button>
+                                            <button class="btn-edit-small btn-danger-small" onclick="deleteRecord('vaccine', ${index})">🗑️</button>
+                                        </div>
+                                    </td>
+                                ` : ''}
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
     }
 
-    document.getElementById('vaccines-table').innerHTML = `
-        <table class="health-table">
-            <thead>
-                <tr>
-                    <th>Aşı Adı</th>
-                    <th>Tarih</th>
-                    <th>Sonraki</th>
-                    <th>Veteriner</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${vaccines.map(v => `
-                    <tr>
-                        <td><strong>${v.name}</strong></td>
-                        <td>${v.date}</td>
-                        <td><span class="badge badge-info">${v.nextDate}</span></td>
-                        <td>${v.vet}</td>
-                    </tr>
-                `).join('')}
-            </tbody>
-        </table>
-    `;
+    if (isEditMode) {
+        console.log("Appending Add Vaccine button");
+        html += `
+            <button class="btn-add-record" onclick="openEditModal('vaccine')">
+                ➕ Yeni Aşı Kaydı Ekle
+            </button>
+        `;
+    }
+
+    container.innerHTML = html;
 }
 
 // Render medications
 function renderMedications() {
+    console.log("renderMedications called, isEditMode:", isEditMode);
+    const container = document.getElementById('medications-table');
+    if (!container) return;
+
     const medications = currentPet.medications || [];
+    let html = '';
 
     if (medications.length === 0) {
-        document.getElementById('medications-table').innerHTML = '<p style="color: #718096;">Aktif ilaç kullanımı bulunmuyor.</p>';
-        return;
+        html = '<p style="color: #718096;">Aktif ilaç kullanımı bulunmuyor.</p>';
+    } else {
+        html = `
+            <div class="table-responsive">
+                <table class="health-table">
+                    <thead>
+                        <tr>
+                            <th>İlaç</th>
+                            <th>Doz</th>
+                            <th>Sıklık</th>
+                            <th>Durum</th>
+                            ${isEditMode ? '<th>İşlem</th>' : ''}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${medications.map((m, index) => `
+                            <tr>
+                                <td><strong>${m.name}</strong></td>
+                                <td>${m.dose}</td>
+                                <td>${m.frequency}</td>
+                                <td><span class="badge badge-success">${m.status}</span></td>
+                                ${isEditMode ? `
+                                    <td>
+                                        <div style="display: flex; gap: 5px;">
+                                            <button class="btn-edit-small" onclick="openEditModal('medication', ${index})">✏️</button>
+                                            <button class="btn-edit-small btn-danger-small" onclick="deleteRecord('medication', ${index})">🗑️</button>
+                                        </div>
+                                    </td>
+                                ` : ''}
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
     }
 
-    document.getElementById('medications-table').innerHTML = `
-        <table class="health-table">
-            <thead>
-                <tr>
-                    <th>İlaç</th>
-                    <th>Doz</th>
-                    <th>Sıklık</th>
-                    <th>Durum</th>
-                </tr>
-            </thead>
-            <tbody>
-                ${medications.map(m => `
-                    <tr>
-                        <td><strong>${m.name}</strong></td>
-                        <td>${m.dose}</td>
-                        <td>${m.frequency}</td>
-                        <td><span class="badge badge-success">${m.status}</span></td>
-                    </tr>
-                `).join('')}
-            </tbody>
-        </table>
-    `;
+    if (isEditMode) {
+        console.log("Appending Add Medication button");
+        html += `
+            <button class="btn-add-record" onclick="openEditModal('medication')">
+                ➕ Yeni İlaç Kaydı Ekle
+            </button>
+        `;
+    }
+
+    container.innerHTML = html;
 }
 
 // Render diseases
 function renderDiseases() {
+    console.log("renderDiseases called, isEditMode:", isEditMode);
+    const container = document.getElementById('diseases-list');
+    if (!container) return;
+
     const diseases = currentPet.diseases || [];
+    let html = '';
 
     if (diseases.length === 0) {
-        document.getElementById('diseases-list').innerHTML = '<p style="color: #10b981;">✅ Hastalık kaydı bulunmuyor.</p>';
-        return;
+        html = '<p style="color: #10b981;">✅ Hastalık kaydı bulunmuyor.</p>';
+    } else {
+        html = diseases.map((d, index) => {
+            const badgeClass = d.status === 'İyileşti' ? 'badge-success' : 'badge-warning';
+            return `
+                <div style="padding: 12px; background: #f7fafc; border-radius: 8px; margin-bottom: 10px; position: relative;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                        <strong>${d.name}</strong>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span class="badge ${badgeClass}">${d.status}</span>
+                            ${isEditMode ? `
+                                <div style="display: flex; gap: 5px;">
+                                    <button class="btn-edit-small" onclick="openEditModal('disease', ${index})">✏️</button>
+                                    <button class="btn-edit-small btn-danger-small" onclick="deleteRecord('disease', ${index})">🗑️</button>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                    <div style="font-size: 0.85rem; color: #718096;">
+                        📅 ${d.date} • Şiddet: ${d.severity}
+                    </div>
+                </div>
+            `;
+        }).join('');
     }
 
-    document.getElementById('diseases-list').innerHTML = diseases.map(d => {
-        const badgeClass = d.status === 'İyileşti' ? 'badge-success' : 'badge-warning';
-        return `
-            <div style="padding: 12px; background: #f7fafc; border-radius: 8px; margin-bottom: 10px;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                    <strong>${d.name}</strong>
-                    <span class="badge ${badgeClass}">${d.status}</span>
-                </div>
-                <div style="font-size: 0.85rem; color: #718096;">
-                    📅 ${d.date} • Şiddet: ${d.severity}
-                </div>
-            </div>
+    if (isEditMode) {
+        console.log("Appending Add Disease button");
+        html += `
+            <button class="btn-add-record" onclick="openEditModal('disease')">
+                ➕ Yeni Hastalık Kaydı Ekle
+            </button>
         `;
-    }).join('');
+    }
+
+    container.innerHTML = html;
 }
 
 // Render gallery
@@ -599,7 +705,7 @@ async function refreshAIAlerts(optionalContext = "") {
 // Helper functions removed as we use real AI now
 // (Keeping empty block to maintain structure if needed)
 
-// AI Health Analysis
+// Initial load
 document.addEventListener('DOMContentLoaded', function () {
     if (document.getElementById('pet-header')) {
         loadPetDetail();
@@ -609,6 +715,141 @@ document.addEventListener('DOMContentLoaded', function () {
         document.getElementById('ai-analyze-btn').addEventListener('click', performAIAnalysis);
     }
 });
+
+// Modal Logic
+let currentEditType = null;
+let currentEditIndex = null;
+
+function openEditModal(type, target) {
+    currentEditType = type;
+    currentEditIndex = (typeof target === 'number') ? target : null;
+    const isNew = currentEditIndex === null;
+
+    const modal = document.getElementById('edit-record-modal');
+    const title = document.getElementById('modal-title');
+    const content = document.getElementById('modal-form-content');
+
+    modal.classList.add('active');
+
+    let html = '';
+
+    if (type === 'basic') {
+        const field = target;
+        title.textContent = 'Temel Bilgi Düzenle';
+
+        if (field === 'birthDate') {
+            html = `<div class="form-group"><label>Doğum Tarihi</label><input type="date" name="birthDate" value="${currentPet.birthDate || ''}" required></div>`;
+        } else if (field === 'gender') {
+            html = `<div class="form-group"><label>Cinsiyet</label><select name="gender" class="form-control"><option value="Erkek" ${currentPet.gender === 'Erkek' ? 'selected' : ''}>Erkek</option><option value="Dişi" ${currentPet.gender === 'Dişi' ? 'selected' : ''}>Dişi</option></select></div>`;
+        } else if (field === 'weight') {
+            html = `<div class="form-group"><label>Ağırlık (kg)</label><input type="number" step="0.1" name="weight" value="${currentPet.weight || ''}" required></div>`;
+        } else if (field === 'color') {
+            html = `<div class="form-group"><label>Renk</label><input type="text" name="color" value="${currentPet.color || ''}" required></div>`;
+        } else if (field === 'microchipId') {
+            html = `<div class="form-group"><label>Mikroçip ID</label><input type="text" name="microchipId" value="${currentPet.microchipId || ''}"></div>`;
+        } else if (field === 'allergies') {
+            html = `<div class="form-group"><label>Alerjiler (Virgülle ayırın)</label><input type="text" name="allergies" value="${(currentPet.allergies || []).join(', ')}"></div>`;
+        }
+        currentEditIndex = field; // Use field name as index for basic info
+    } else if (type === 'vaccine') {
+        title.textContent = isNew ? 'Yeni Aşı Ekle' : 'Aşı Kaydı Düzenle';
+        const data = isNew ? { name: '', date: '', nextDate: '', vet: '' } : currentPet.vaccines[currentEditIndex];
+        html = `
+            <div class="form-group"><label>Aşı Adı</label><input type="text" name="name" value="${data.name}" required></div>
+            <div class="form-group"><label>Uyapılma Tarihi</label><input type="date" name="date" value="${data.date}" required></div>
+            <div class="form-group"><label>Sonraki Tarih</label><input type="date" name="nextDate" value="${data.nextDate}" required></div>
+            <div class="form-group"><label>Veteriner</label><input type="text" name="vet" value="${data.vet}" required></div>
+        `;
+    } else if (type === 'medication') {
+        title.textContent = isNew ? 'Yeni İlaç Ekle' : 'İlaç Kaydı Düzenle';
+        const data = isNew ? { name: '', dose: '', frequency: '', status: 'Aktif' } : currentPet.medications[currentEditIndex];
+        html = `
+            <div class="form-group"><label>İlaç Adı</label><input type="text" name="name" value="${data.name}" required></div>
+            <div class="form-group"><label>Dozaj</label><input type="text" name="dose" value="${data.dose}" required></div>
+            <div class="form-group"><label>Sıklık</label><input type="text" name="frequency" value="${data.frequency}" required></div>
+            <div class="form-group"><label>Durum</label><select name="status" class="form-control"><option value="Aktif" ${data.status === 'Aktif' ? 'selected' : ''}>Aktif</option><option value="Pasif" ${data.status === 'Pasif' ? 'selected' : ''}>Pasif</option><option value="Tamamlandı" ${data.status === 'Tamamlandı' ? 'selected' : ''}>Tamamlandı</option></select></div>
+        `;
+    } else if (type === 'disease') {
+        title.textContent = isNew ? 'Yeni Hastalık Kaydı Ekle' : 'Hastalık Kaydı Düzenle';
+        const data = isNew ? { name: '', date: '', status: 'Devam Ediyor', severity: 'Orta' } : currentPet.diseases[currentEditIndex];
+        html = `
+            <div class="form-group"><label>Hastalık/Teşhis</label><input type="text" name="name" value="${data.name}" required></div>
+            <div class="form-group"><label>Teşhis Tarihi</label><input type="date" name="date" value="${data.date}" required></div>
+            <div class="form-group"><label>Durum</label><select name="status" class="form-control"><option value="Devam Ediyor" ${data.status === 'Devam Ediyor' ? 'selected' : ''}>Devam Ediyor</option><option value="İyileşti" ${data.status === 'İyileşti' ? 'selected' : ''}>İyileşti</option><option value="Kronik" ${data.status === 'Kronik' ? 'selected' : ''}>Kronik</option></select></div>
+            <div class="form-group"><label>Şiddet</label><select name="severity" class="form-control"><option value="Hafif" ${data.severity === 'Hafif' ? 'selected' : ''}>Hafif</option><option value="Orta" ${data.severity === 'Orta' ? 'selected' : ''}>Orta</option><option value="Ağır" ${data.severity === 'Ağır' ? 'selected' : ''}>Ağır</option></select></div>
+        `;
+    }
+
+    content.innerHTML = html;
+}
+
+function closeEditModal() {
+    document.getElementById('edit-record-modal').classList.remove('active');
+    document.getElementById('edit-record-form').reset();
+}
+
+function handleSaveRecord(event) {
+    event.preventDefault();
+    const formData = new FormData(event.target);
+    const data = Object.fromEntries(formData.entries());
+
+    if (currentEditType === 'basic') {
+        const field = currentEditIndex;
+        let value = data[field];
+        if (field === 'weight') value = parseFloat(value);
+        if (field === 'allergies') value = value.split(',').map(s => s.trim()).filter(s => s !== '');
+
+        currentPet[field] = value;
+    } else if (currentEditType === 'vaccine') {
+        if (currentEditIndex === null) {
+            if (!currentPet.vaccines) currentPet.vaccines = [];
+            currentPet.vaccines.push(data);
+        } else {
+            currentPet.vaccines[currentEditIndex] = data;
+        }
+    } else if (currentEditType === 'medication') {
+        if (currentEditIndex === null) {
+            if (!currentPet.medications) currentPet.medications = [];
+            currentPet.medications.push(data);
+        } else {
+            currentPet.medications[currentEditIndex] = data;
+        }
+    } else if (currentEditType === 'disease') {
+        if (currentEditIndex === null) {
+            if (!currentPet.diseases) currentPet.diseases = [];
+            currentPet.diseases.push(data);
+        } else {
+            currentPet.diseases[currentEditIndex] = data;
+        }
+    }
+
+    PetStorage.update(currentPet.id, currentPet);
+    closeEditModal();
+    loadPetDetail();
+
+    if (typeof showToast === 'function') {
+        showToast('Kayıt başarıyla güncellendi', 'success');
+    }
+}
+
+function deleteRecord(type, index) {
+    if (!confirm('Bu kaydı silmek istediğinizden emin misiniz?')) return;
+
+    if (type === 'vaccine') {
+        currentPet.vaccines.splice(index, 1);
+    } else if (type === 'medication') {
+        currentPet.medications.splice(index, 1);
+    } else if (type === 'disease') {
+        currentPet.diseases.splice(index, 1);
+    }
+
+    PetStorage.update(currentPet.id, currentPet);
+    loadPetDetail();
+
+    if (typeof showToast === 'function') {
+        showToast('Kayıt silindi', 'info');
+    }
+}
 
 // Delete pet
 function deletePet() {
