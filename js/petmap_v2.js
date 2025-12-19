@@ -912,9 +912,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
     // --- AI Module Logic (Real Gemini API) ---
-    // --- AI Module Logic (Secure Backend Proxy) ---
-    // API Key is now hidden in the Python Backend!
-    const API_URL = '/api/gemini';
+    // AI Service configuration is now handled by js/ai-service.js
 
     const uploadArea = document.getElementById('upload-area');
     const fileInput = document.getElementById('pet-image-input');
@@ -1133,7 +1131,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // 2. Add to History
         chatHistory.push({ role: "user", parts: [{ text: text }] });
 
-        // 3. Use Backend Proxy API with System Instruction
+        // 3. Use Global callGeminiAPI (from js/ai-service.js)
         const payload = {
             system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
             contents: chatHistory,
@@ -1143,7 +1141,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        const responseText = await callGeminiAPI(payload);
+        const responseText = await window.callGeminiAPI(payload);
 
         // Remove loading
         loadingMsg.remove();

@@ -595,46 +595,34 @@ Lütfen şunları değerlendir:
 Türkçe, profesyonel ve detaylı bir analiz yap. Yanıtını markdown formatında düzenle.`;
 
     try {
-        const response = await fetch('/api/gemini', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                contents: [{
-                    parts: [{
-                        text: prompt
-                    }]
+        const analysis = await window.callGeminiAPI({
+            contents: [{
+                parts: [{
+                    text: prompt
                 }]
-            })
+            }]
         });
 
-        if (!response.ok) {
-            throw new Error(`API returned ${response.status}`);
+        if (!analysis) {
+            throw new Error(`AI connection failed`);
         }
 
-        const data = await response.json();
+        // Render marked down content if possible
+        if (typeof marked !== 'undefined') {
+            contentDiv.innerHTML = marked.parse(analysis);
+        } else {
+            contentDiv.innerHTML = analysis.replace(/\n/g, '<br>');
+        }
 
-        if (data.candidates && data.candidates[0] && data.candidates[0].content) {
-            const analysis = data.candidates[0].content.parts[0].text;
-
-            // Render marked down content if possible
-            if (typeof marked !== 'undefined') {
-                contentDiv.innerHTML = marked.parse(analysis);
-            } else {
-                contentDiv.innerHTML = analysis.replace(/\n/g, '<br>');
-            }
-
-            contentDiv.innerHTML += `
+        contentDiv.innerHTML += `
                 <div style="margin-top: 20px; padding: 15px; background: #d1fae5; border-radius: 8px; border-left: 4px solid #10b981;">
                     <strong>✅ Gerçek AI Analizi:</strong> Bu analiz Gemini AI tarafından gerçek zamanlı olarak oluşturuldu.
                 </div>
             `;
-            resultDiv.style.display = 'block';
+        resultDiv.style.display = 'block';
 
-            // Also refresh alerts based on this analysis if needed
-            refreshAIAlerts(analysis);
-        }
+        // Also refresh alerts based on this analysis if needed
+        refreshAIAlerts(analysis);
     } catch (error) {
         console.error('AI Analysis Error:', error);
         contentDiv.innerHTML = `<div style="color: #dc2626; padding: 15px; background: #fee2e2; border-radius: 8px;">
