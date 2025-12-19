@@ -1,6 +1,35 @@
 // App Logic for PetMap
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Toast Notification System
+    const showToast = (message, type = 'info') => {
+        let container = document.getElementById('toast-container');
+        if (!container) {
+            container = document.createElement('div');
+            container.id = 'toast-container';
+            document.body.appendChild(container);
+        }
+
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+
+        let icon = 'ℹ️';
+        if (type === 'success') icon = '✅';
+        if (type === 'error') icon = '❌';
+        if (type === 'warning') icon = '⚠️';
+
+        toast.innerHTML = `<span>${icon}</span> ${message}`;
+        container.appendChild(toast);
+
+        // Remove from DOM after animation
+        setTimeout(() => {
+            toast.remove();
+            if (container.children.length === 0) {
+                container.remove();
+            }
+        }, 5000);
+    };
+
     // Smooth scroll for nav links
     document.querySelectorAll('nav a[href^="#"]').forEach(anchor => {
         anchor.addEventListener('click', function (e) {
@@ -544,30 +573,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Add click event listener for delete button after popup opens
                 circle.on('popupopen', function () {
-                    console.log('🔓 Popup opened, looking for delete button...');
                     const deleteBtn = document.querySelector('.zone-popup-delete');
                     console.log('🔍 Delete button found:', deleteBtn);
 
                     if (deleteBtn) {
                         console.log('✅ Attaching click event to delete button');
                         deleteBtn.onclick = function () {
-                            console.log('🗑️ Delete button clicked!');
                             const zoneId = this.getAttribute('data-zone-id');
-                            console.log('📍 Zone ID:', zoneId);
 
                             // Direct deletion without confirm (confirm may be blocked)
-                            console.log('🔥 Deleting zone...');
                             ZoneDB.deleteZone(zoneId);
                             map.closePopup();
                             renderZones();
 
                             // Show success message
                             setTimeout(() => {
-                                alert('✅ Bölge silindi!');
+                                showToast('Bölge başarıyla silindi!', 'success');
                             }, 100);
                         };
-                    } else {
-                        console.warn('⚠️ Delete button not found in popup');
                     }
                 });
 
@@ -657,7 +680,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 stopDrawing();
 
                 // Show success message
-                alert(`✅ ${getZoneLabel(category)} başarıyla oluşturuldu!`);
+                showToast(`${getZoneLabel(category)} başarıyla oluşturuldu!`, 'success');
             });
         }
     }
@@ -672,7 +695,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // ADDED: Check login state before allowing drawing
         const userRole = sessionStorage.getItem('userRole');
         if (!userRole) {
-            alert('⚠️ Bölge işaretlemek için lütfen giriş yapın!');
+            showToast('Bölge işaretlemek için lütfen giriş yapın!', 'error');
             // Optional: Redirect to login page if desired
             // window.location.href = 'login.html';
             return;
@@ -684,7 +707,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('btn-create-zone').textContent = '⏹️ Çizimi İptal Et';
 
             // Show instruction to user
-            alert('ℹ️ Bölge Çizimi:\n\n📍 Haritada bir noktaya tıklayın ve MOUSE TUŞUNU BASILI TUTARAK sürükleyin.\n\n✅ İstediğiniz boyuta geldiğinde mouse tuşunu BIRAKIN.\n\nDaire otomatik olarak kaydedilecektir!');
+            showToast('📍 Haritaya tıklayıp sürükleyerek bölgeyi çizin.', 'info');
 
             // Enable custom drag drawing
             map.dragging.disable(); // Disable map dragging during zone creation
@@ -742,7 +765,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // Minimum radius check (at least 10 meters)
             if (radius < 10) {
-                alert('⚠️ Bölge çok küçük! Lütfen daha büyük bir alan çizin.');
+                showToast('Bölge çok küçük! Lütfen daha büyük bir alan çizin.', 'warning');
                 map.removeLayer(tempCircle);
                 cleanupDrawing();
                 return;
@@ -787,16 +810,14 @@ document.addEventListener('DOMContentLoaded', () => {
             // Clean up
             cleanupDrawing();
 
-            // Stop drawing mode
+            // Start drawing mode
             stopDrawing();
 
             // Show success message
-            alert(`✅ ${getZoneLabel(category)} başarıyla oluşturuldu!`);
-            console.log('🎉 Zone creation completed!');
-
+            showToast(`${getZoneLabel(category)} başarıyla oluşturuldu!`, 'success');
         } catch (error) {
             console.error('❌ Error creating zone:', error);
-            alert('❌ Bölge oluşturulurken hata oluştu: ' + error.message);
+            showToast('Bölge oluşturulurken hata oluştu!', 'error');
 
             // Clean up on error
             if (tempCircle) {
@@ -859,7 +880,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (confirm('Bu bölgeyi silmek istediğinizden emin misiniz?')) {
             ZoneDB.deleteZone(zoneId);
             renderZones();
-            alert('✅ Bölge silindi!');
+            showToast('Bölge başarıyla silindi!', 'success');
         }
     };
 
