@@ -451,7 +451,7 @@ function renderNotes() {
     document.getElementById('emergency-info').textContent = currentPet.emergencyInfo || 'Belirtilmemiş';
 }
 
-// AI Health Analysis - HYBRID SYSTEM (tries real API, falls back to default)
+// AI Health Analysis - Real AI Only
 async function performAIAnalysis() {
     const btn = document.getElementById('ai-analyze-btn');
     const resultDiv = document.getElementById('ai-analysis-result');
@@ -486,7 +486,7 @@ Lütfen şunları değerlendir:
 5. Aşı ve ilaç takibi
 6. Öneriler ve uyarılar
 
-Türkçe, anlaşılır ve detaylı bir analiz yap.`;
+Türkçe, profesyonel ve detaylı bir analiz yap. Yanıtını markdown formatında düzenle.`;
 
     try {
         const response = await fetch('/api/gemini', {
@@ -504,73 +504,36 @@ Türkçe, anlaşılır ve detaylı bir analiz yap.`;
         });
 
         if (!response.ok) {
-            throw new Error(`API returned ${response.status}: ${response.statusText}`);
+            throw new Error(`API returned ${response.status}`);
         }
 
         const data = await response.json();
 
         if (data.candidates && data.candidates[0] && data.candidates[0].content) {
             const analysis = data.candidates[0].content.parts[0].text;
-            contentDiv.innerHTML = `
-                <div style="line-height: 1.8;">
-                    ${analysis.replace(/\n/g, '<br>')}
-                    <div style="margin-top: 20px; padding: 15px; background: #d1fae5; border-radius: 8px; border-left: 4px solid #10b981;">
-                        <strong>✅ Gerçek AI Analizi:</strong> Bu analiz Gemini AI tarafından gerçek zamanlı olarak oluşturuldu.
-                    </div>
+
+            // Render marked down content if possible
+            if (typeof marked !== 'undefined') {
+                contentDiv.innerHTML = marked.parse(analysis);
+            } else {
+                contentDiv.innerHTML = analysis.replace(/\n/g, '<br>');
+            }
+
+            contentDiv.innerHTML += `
+                <div style="margin-top: 20px; padding: 15px; background: #d1fae5; border-radius: 8px; border-left: 4px solid #10b981;">
+                    <strong>✅ Gerçek AI Analizi:</strong> Bu analiz Gemini AI tarafından gerçek zamanlı olarak oluşturuldu.
                 </div>
             `;
             resultDiv.style.display = 'block';
-        } else {
-            throw new Error('Invalid API response structure');
+
+            // Also refresh alerts based on this analysis if needed
+            refreshAIAlerts(analysis);
         }
     } catch (error) {
-        console.warn('⚠️ Real API failed, using default analysis:', error.message);
-
-        // Fallback to default intelligent analysis
-        await new Promise(resolve => setTimeout(resolve, 1000));
-
-        const weightTrend = analyzeWeightTrend();
-        const activityLevel = analyzeActivityLevel();
-        const vaccineStatus = checkVaccineStatus();
-
-        const analysis = `
-            <div style="line-height: 1.8;">
-                <h4 style="color: var(--primary); margin-bottom: 15px;">📋 Genel Sağlık Değerlendirmesi</h4>
-                <p><strong>${currentPet.name}</strong> (${currentPet.species}, ${age} yaşında) için yapılan kapsamlı sağlık analizi sonuçları:</p>
-                
-                <h4 style="color: var(--primary); margin-top: 20px; margin-bottom: 10px;">🎯 Sağlık Skoru: ${currentPet.healthScore}/100</h4>
-                <p>${getHealthScoreComment(currentPet.healthScore)}</p>
-                
-                <h4 style="color: var(--primary); margin-top: 20px; margin-bottom: 10px;">⚖️ Ağırlık Analizi</h4>
-                <p>${weightTrend}</p>
-                
-                <h4 style="color: var(--primary); margin-top: 20px; margin-bottom: 10px;">🏃 Aktivite Değerlendirmesi</h4>
-                <p>${activityLevel}</p>
-                
-                <h4 style="color: var(--primary); margin-top: 20px; margin-bottom: 10px;">💉 Aşı ve İlaç Takibi</h4>
-                <p>${vaccineStatus}</p>
-                
-                ${currentPet.allergies && currentPet.allergies.length > 0 ? `
-                    <h4 style="color: var(--primary); margin-top: 20px; margin-bottom: 10px;">⚠️ Alerjiler</h4>
-                    <p>Tespit edilen alerjiler: <strong>${currentPet.allergies.join(', ')}</strong>. Bu maddelere maruz kalmaktan kaçının.</p>
-                ` : ''}
-                
-                <h4 style="color: var(--primary); margin-top: 20px; margin-bottom: 10px;">💡 Öneriler</h4>
-                <ul style="margin-left: 20px;">
-                    ${getRecommendations().map(rec => `<li>${rec}</li>`).join('')}
-                </ul>
-                
-                <div style="margin-top: 20px; padding: 15px; background: #fef3c7; border-radius: 8px; border-left: 4px solid #f59e0b;">
-                    <strong>ℹ️ Yerel Analiz:</strong> Bu analiz yerel veri işleme ile oluşturuldu. Gerçek AI bağlantısı şu anda kullanılamıyor.
-                </div>
-                
-                <div style="margin-top: 15px; padding: 15px; background: #e0f2fe; border-radius: 8px; border-left: 4px solid #0284c7;">
-                    <strong>📌 Not:</strong> Bu analiz genel bir değerlendirmedir. Herhangi bir sağlık endişeniz varsa mutlaka veteriner hekiminize danışın.
-                </div>
-            </div>
-        `;
-
-        contentDiv.innerHTML = analysis;
+        console.error('AI Analysis Error:', error);
+        contentDiv.innerHTML = `<div style="color: #dc2626; padding: 15px; background: #fee2e2; border-radius: 8px;">
+            ⚠️ <strong>Hata:</strong> Yapay zeka analizi şu an gerçekleştirilemiyor. Lütfen API anahtarını ve bağlantınızı kontrol edin.
+        </div>`;
         resultDiv.style.display = 'block';
     } finally {
         btn.disabled = false;
@@ -578,142 +541,63 @@ Türkçe, anlaşılır ve detaylı bir analiz yap.`;
     }
 }
 
-// Helper functions for AI analysis
-function analyzeWeightTrend() {
-    if (!currentPet.weightHistory || currentPet.weightHistory.length < 2) {
-        return `Mevcut ağırlık: ${currentPet.weight} kg. Trend analizi için yeterli veri bulunmuyor.`;
-    }
+// New logic to refresh alerts using AI
+async function refreshAIAlerts(optionalContext = "") {
+    console.log("Refreshing AI Alerts...");
 
-    const history = currentPet.weightHistory;
-    const firstWeight = history[0].weight;
-    const lastWeight = history[history.length - 1].weight;
-    const change = lastWeight - firstWeight;
-    const changePercent = ((change / firstWeight) * 100).toFixed(1);
-
-    if (Math.abs(change) < 0.3) {
-        return `Ağırlık stabil seyrediyor (${currentPet.weight} kg). Son ${history.length} ölçümde önemli bir değişiklik gözlenmedi. Bu, sağlıklı bir durumdur.`;
-    } else if (change > 0) {
-        return `Son ${history.length} ölçümde ${Math.abs(change).toFixed(1)} kg artış tespit edildi (%${Math.abs(changePercent)}). ${change > 1 ? '⚠️ Kilo artışı hızlı görünüyor, beslenme programını gözden geçirin.' : '✅ Normal gelişim seyri içinde.'}`;
-    } else {
-        return `Son ${history.length} ölçümde ${Math.abs(change).toFixed(1)} kg azalma tespit edildi (%${Math.abs(changePercent)}). ${Math.abs(change) > 1 ? '⚠️ Kilo kaybı dikkat gerektiriyor, veteriner kontrolü önerilir.' : '✅ Sağlıklı kilo kaybı trendi.'}`;
-    }
-}
-
-function analyzeActivityLevel() {
-    if (!currentPet.activityHistory || currentPet.activityHistory.length === 0) {
-        return 'Aktivite verisi bulunmuyor.';
-    }
-
-    const avgSteps = currentPet.activityHistory.reduce((sum, day) => sum + day.steps, 0) / currentPet.activityHistory.length;
-    const avgDuration = currentPet.activityHistory.reduce((sum, day) => sum + day.duration, 0) / currentPet.activityHistory.length;
-
-    let assessment = `Ortalama günlük aktivite: ${Math.round(avgSteps)} adım, ${Math.round(avgDuration)} dakika. `;
-
-    if (currentPet.species === 'Köpek') {
-        if (avgSteps > 7000) {
-            assessment += '✅ Köpekler için mükemmel aktivite seviyesi!';
-        } else if (avgSteps > 5000) {
-            assessment += '✅ İyi bir aktivite seviyesi, böyle devam edin.';
-        } else {
-            assessment += '⚠️ Aktivite seviyesi düşük, daha fazla yürüyüş ve oyun önerilir.';
+    const prompt = `
+    GÖREV: Evcil hayvanın sağlık verilerine dayanarak 1-3 adet kısa "Akıllı Uyarı" (Alert) oluştur.
+    
+    VERİLER:
+    Hayvan: ${currentPet.name} (${currentPet.species})
+    Geçmiş Veriler: ${JSON.stringify({
+        weight: currentPet.weightHistory,
+        activity: currentPet.activityHistory,
+        appetite: currentPet.appetiteHistory,
+        vaccines: currentPet.vaccines
+    })}
+    Ek Bağlam: ${optionalContext.substring(0, 500)}
+    
+    ÇIKTI FORMATI (SADECE JSON):
+    [
+        {
+            "type": "success|info|warning|danger",
+            "severity": "low|medium|high",
+            "message": "Kısa uyarı başlığı",
+            "recommendation": "Kısa öneri cümlesi",
+            "date": "2024-12-18"
         }
-    } else if (currentPet.species === 'Kedi') {
-        if (avgSteps > 3000) {
-            assessment += '✅ Kediler için harika aktivite seviyesi!';
-        } else if (avgSteps > 2000) {
-            assessment += '✅ Normal aktivite seviyesi.';
-        } else {
-            assessment += 'ℹ️ Kediler için normal bir aktivite seviyesi, oyun teşvik edilebilir.';
-        }
-    }
+    ]
+    `;
 
-    return assessment;
-}
-
-function checkVaccineStatus() {
-    let status = '';
-
-    if (currentPet.vaccines && currentPet.vaccines.length > 0) {
-        const upcomingVaccines = currentPet.vaccines.filter(v => {
-            const nextDate = new Date(v.nextDate);
-            const today = new Date();
-            const daysUntil = Math.floor((nextDate - today) / (1000 * 60 * 60 * 24));
-            return daysUntil <= 60 && daysUntil >= 0;
+    try {
+        const response = await fetch('/api/gemini', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }]
+            })
         });
 
-        if (upcomingVaccines.length > 0) {
-            status += `⚠️ <strong>${upcomingVaccines.length} aşı</strong> yakında yenilenmelidir: ${upcomingVaccines.map(v => v.name).join(', ')}. `;
-        } else {
-            status += '✅ Tüm aşılar güncel. ';
+        const data = await response.json();
+        if (data.candidates && data.candidates[0]) {
+            let text = data.candidates[0].content.parts[0].text;
+            let cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
+            const alerts = JSON.parse(cleanJson);
+
+            if (Array.isArray(alerts)) {
+                currentPet.aiAlerts = alerts;
+                PetStorage.update(currentPet.id, { aiAlerts: alerts });
+                renderAIAlerts();
+            }
         }
-    }
-
-    if (currentPet.medications && currentPet.medications.length > 0) {
-        const activeMeds = currentPet.medications.filter(m => m.status === 'Aktif');
-        status += `Aktif ${activeMeds.length} ilaç kullanımı devam ediyor. Dozlara düzenli uyulmalı.`;
-    } else {
-        status += 'Aktif ilaç kullanımı bulunmuyor.';
-    }
-
-    return status;
-}
-
-function getHealthScoreComment(score) {
-    if (score >= 90) {
-        return '🌟 Mükemmel sağlık durumu! Tüm göstergeler ideal aralıkta. Mevcut bakım rutinine devam edin.';
-    } else if (score >= 80) {
-        return '✅ Çok iyi sağlık durumu. Küçük iyileştirmeler yapılabilir ancak genel durum mükemmel.';
-    } else if (score >= 70) {
-        return '👍 İyi sağlık durumu. Bazı alanlarda iyileştirme fırsatları var.';
-    } else if (score >= 60) {
-        return '⚠️ Orta düzey sağlık durumu. Veteriner kontrolü ve bakım rutini gözden geçirilmeli.';
-    } else {
-        return '🚨 Dikkat gerektiren sağlık durumu. Acil veteriner konsültasyonu önerilir.';
+    } catch (err) {
+        console.error("Alert Refresh Error:", err);
     }
 }
 
-function getRecommendations() {
-    const recommendations = [];
-
-    // Weight-based recommendations
-    if (currentPet.weightHistory && currentPet.weightHistory.length >= 2) {
-        const change = currentPet.weightHistory[currentPet.weightHistory.length - 1].weight - currentPet.weightHistory[0].weight;
-        if (Math.abs(change) > 1) {
-            recommendations.push('Ağırlık değişimi nedeniyle beslenme programını veterinerinizle gözden geçirin');
-        }
-    }
-
-    // Activity-based recommendations
-    if (currentPet.activityHistory && currentPet.activityHistory.length > 0) {
-        const avgSteps = currentPet.activityHistory.reduce((sum, day) => sum + day.steps, 0) / currentPet.activityHistory.length;
-        if (currentPet.species === 'Köpek' && avgSteps < 5000) {
-            recommendations.push('Günlük yürüyüş süresini artırın (hedef: 60-90 dakika)');
-        }
-    }
-
-    // Vaccine recommendations
-    if (currentPet.vaccines && currentPet.vaccines.length > 0) {
-        const needsVaccine = currentPet.vaccines.some(v => {
-            const nextDate = new Date(v.nextDate);
-            const today = new Date();
-            return (nextDate - today) / (1000 * 60 * 60 * 24) <= 30;
-        });
-        if (needsVaccine) {
-            recommendations.push('Aşı takvimini kontrol edin ve randevu alın');
-        }
-    }
-
-    // General recommendations
-    recommendations.push('Düzenli veteriner kontrolleri yaptırın (yılda en az 1 kez)');
-    recommendations.push('Diş sağlığına dikkat edin, düzenli diş temizliği yapın');
-    recommendations.push('Bol su tüketimini sağlayın');
-
-    if (currentPet.allergies && currentPet.allergies.length > 0) {
-        recommendations.push('Alerji yapan maddelere maruz kalmaktan kaçının');
-    }
-
-    return recommendations.slice(0, 5); // Max 5 recommendations
-}
+// Helper functions removed as we use real AI now
+// (Keeping empty block to maintain structure if needed)
 
 // AI Health Analysis
 document.addEventListener('DOMContentLoaded', function () {

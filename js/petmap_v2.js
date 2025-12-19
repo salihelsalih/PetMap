@@ -128,6 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let activePetId = 'boncuk';
     let simulationInterval;
+    let lastRiskState = 'normal'; // tracks: normal, warning, critical
 
     // Map Elements (Panel)
     const distanceVal = document.getElementById('distance-val');
@@ -214,7 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
         updateActivePetUI();
     }
 
-    function updateActivePetUI() {
+    async function updateActivePetUI() {
         const pet = pets[activePetId];
 
         petMarker.setLatLng([pet.lat, pet.lng]);
@@ -225,23 +226,72 @@ document.addEventListener('DOMContentLoaded', () => {
         if (pet.risk > 70) mapRiskScore.className = 'score-value warning';
         else mapRiskScore.className = 'score-value';
 
-        // Alert Logic
-        if (pet.distance > 1.0) {
+        // Check for State Change to Trigger AI
+        let currentLevel = 'normal';
+        if (pet.distance > 1.0) currentLevel = 'critical';
+        else if (pet.distance > 0.5) currentLevel = 'warning';
+
+        if (currentLevel !== lastRiskState) {
+            lastRiskState = currentLevel;
+            triggerAIRiskAnalysis(pet, currentLevel);
+        }
+
+        // UI Updates (Immediate)
+        if (currentLevel === 'critical') {
             actionTitle.innerText = "🚨 KRİTİK UYARI";
-            actionDesc.innerText = `${pet.name} 1km sınırını aştı! Konum paylaşımı açıldı.`;
+            // actionDesc will be updated by AI, but set a placeholder first
+            if (actionDesc.innerText.includes('normal')) {
+                actionDesc.innerText = `${pet.name} 1km sınırını aştı! Analiz ediliyor...`;
+            }
             document.querySelector('.action-box').style.background = "#fff3cd";
 
             // Show Overlay
             overlay.style.display = 'flex';
             overlayMsg.innerText = `${pet.name} güvenli bölgeden 1km uzaklaştı!`;
-        } else if (pet.distance > 0.5) {
+        } else if (currentLevel === 'warning') {
             actionTitle.innerText = "⚠️ Ayrılma Uyarısı";
-            actionDesc.innerText = "Mesafe artıyor. Lütfen kontrol edin.";
+            if (actionDesc.innerText.includes('normal')) {
+                actionDesc.innerText = "Mesafe artıyor. Analiz ediliyor...";
+            }
             document.querySelector('.action-box').style.background = "#fdfefe";
         } else {
             actionTitle.innerText = "Durum Analizi";
             actionDesc.innerText = `Şu an ${pet.name} için her şey normal.`;
             document.querySelector('.action-box').style.background = "#fdfefe";
+        }
+    }
+
+    async function triggerAIRiskAnalysis(pet, level) {
+        if (level === 'normal') return; // Don't call AI for normal states if already known
+
+        const prompt = `
+        GÖREV: Bir evcil hayvanın risk durumunu analiz et ve kısa, etkileyici bir uyarı mesajı oluştur.
+        
+        VERİLER:
+        - Hayvan Adı: ${pet.name}
+        - Tür: ${pet.type === 'cat' ? 'Kedi' : 'Köpek'}
+        - Mesafe: ${pet.distance.toFixed(2)} km
+        - Risk Seviyesi: ${level === 'critical' ? 'Kritik (Yüksek)' : 'Uyarı (Orta)'}
+        
+        KURALLAR:
+        1. Yanıtın SADECE uyarı cümlesi olmalı (max 15 kelime).
+        2. Profesyonel ama aciliyet hissettiren bir dil kullan.
+        3. Türkçe yanıt ver.
+        4. Örn: "${pet.name} çok uzaklaştı! Hemen konumunu kontrol edin ve geri çağırın."
+        `;
+
+        const payload = {
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: { maxOutputTokens: 50, temperature: 0.7 }
+        };
+
+        try {
+            const aiText = await callGeminiAPI(payload);
+            if (aiText) {
+                actionDesc.innerText = aiText;
+            }
+        } catch (err) {
+            console.error("Risk AI Error:", err);
         }
     }
 
@@ -378,6 +428,468 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    // ===== ZONE MANAGEMENT SYSTEM =====
+
+    // Zone Database (localStorage)
+    const ZoneDB = {
+        saveZone: (zone) => {
+            const zones = ZoneDB.getZones();
+            zones.push(zone);
+            localStorage.setItem('petmap_zones', JSON.stringify(zones));
+        },
+        // ADDED: Clear existing zones for the update request
+        clearAllZones: () => {
+            localStorage.removeItem('petmap_zones');
+        },
+        getZones: () => {
+            const z = localStorage.getItem('petmap_zones');
+            return z ? JSON.parse(z) : [];
+        },
+        deleteZone: (id) => {
+            let zones = ZoneDB.getZones();
+            zones = zones.filter(z => z.id !== id);
+            localStorage.setItem('petmap_zones', JSON.stringify(zones));
+        }
+    };
+
+    // Zone layer group
+    let zoneLayerGroup = L.layerGroup().addTo(map);
+    let zonesVisible = true;
+    let drawControl = null;
+    let drawnItems = new L.FeatureGroup();
+    let isDrawing = false;
+    let zoneEventRegistered = false;
+
+    // Get zone color based on category
+    function getZoneColor(category) {
+        const colors = {
+            dangerous: { fill: 'rgba(255, 68, 68, 0.4)', stroke: 'rgba(255, 68, 68, 0.8)' },
+            safe: { fill: 'rgba(68, 255, 68, 0.4)', stroke: 'rgba(68, 255, 68, 0.8)' },
+            fun: { fill: 'rgba(68, 136, 255, 0.4)', stroke: 'rgba(68, 136, 255, 0.8)' }
+        };
+        return colors[category] || colors.safe;
+    }
+
+    // Get zone label
+    function getZoneLabel(category) {
+        const labels = {
+            dangerous: '🔴 Tehlikeli Bölge',
+            safe: '🟢 Güvenli Bölge',
+            fun: '🔵 Eğlenceli Bölge'
+        };
+        return labels[category] || category;
+    }
+
+    // Render all zones from database
+    function renderZones() {
+        zoneLayerGroup.clearLayers();
+        const zones = ZoneDB.getZones();
+
+        zones.forEach(zone => {
+            try {
+                const color = getZoneColor(zone.category);
+
+                // Create circle (instead of polygon)
+                // Convert radius to number (localStorage stores as string)
+                const radius = parseFloat(zone.radius);
+
+                // Validate radius
+                if (isNaN(radius) || radius <= 0) {
+                    console.warn('⚠️ Skipping zone with invalid radius:', zone);
+                    return; // Skip this zone
+                }
+
+                // Validate center
+                if (!zone.center || !Array.isArray(zone.center) || zone.center.length !== 2) {
+                    console.warn('⚠️ Skipping zone with invalid center:', zone);
+                    return; // Skip this zone
+                }
+
+                const circle = L.circle(zone.center, {
+                    radius: radius,
+                    color: color.stroke,
+                    fillColor: color.fill,
+                    fillOpacity: 0.4,
+                    weight: 2
+                });
+
+                // Create popup content
+                const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
+                const isCreator = currentUser.email === zone.creator;
+                const createdDate = new Date(zone.createdAt).toLocaleDateString('tr-TR');
+
+                let popupContent = `
+                    <div class="zone-popup">
+                        <div class="zone-popup-header">${getZoneLabel(zone.category)}</div>
+                        <div class="zone-popup-info">📅 ${createdDate}</div>
+                        <div class="zone-popup-info">👤 ${zone.creatorName || zone.creator}</div>
+                        <div class="zone-popup-info">📏 ${Math.round(radius)}m yarıçap</div>
+                `;
+
+                if (zone.description) {
+                    popupContent += `<div class="zone-popup-info">📝 ${zone.description}</div>`;
+                }
+
+                if (isCreator) {
+                    popupContent += `
+                        <button class="zone-popup-delete" data-zone-id="${zone.id}">
+                            🗑️ Sil
+                        </button>
+                    `;
+                }
+
+                popupContent += `</div>`;
+
+                circle.bindPopup(popupContent);
+
+                // Add click event listener for delete button after popup opens
+                circle.on('popupopen', function () {
+                    console.log('🔓 Popup opened, looking for delete button...');
+                    const deleteBtn = document.querySelector('.zone-popup-delete');
+                    console.log('🔍 Delete button found:', deleteBtn);
+
+                    if (deleteBtn) {
+                        console.log('✅ Attaching click event to delete button');
+                        deleteBtn.onclick = function () {
+                            console.log('🗑️ Delete button clicked!');
+                            const zoneId = this.getAttribute('data-zone-id');
+                            console.log('📍 Zone ID:', zoneId);
+
+                            // Direct deletion without confirm (confirm may be blocked)
+                            console.log('🔥 Deleting zone...');
+                            ZoneDB.deleteZone(zoneId);
+                            map.closePopup();
+                            renderZones();
+
+                            // Show success message
+                            setTimeout(() => {
+                                alert('✅ Bölge silindi!');
+                            }, 100);
+                        };
+                    } else {
+                        console.warn('⚠️ Delete button not found in popup');
+                    }
+                });
+
+                zoneLayerGroup.addLayer(circle);
+            } catch (error) {
+                console.error('❌ Error rendering zone:', zone, error);
+                // Continue with next zone instead of crashing
+            }
+        });
+    }
+
+    // Initialize draw control
+    function initDrawControl() {
+        if (drawControl) {
+            map.removeControl(drawControl);
+        }
+
+        // Add drawnItems to map if not already added
+        if (!map.hasLayer(drawnItems)) {
+            map.addLayer(drawnItems);
+        }
+
+        drawControl = new L.Control.Draw({
+            position: 'topright',
+            draw: {
+                circle: {
+                    shapeOptions: {
+                        color: '#3388ff'
+                    },
+                    showRadius: true,
+                    metric: true,
+                    feet: false
+                },
+                polygon: false,
+                polyline: false,
+                rectangle: false,
+                marker: false,
+                circlemarker: false
+            },
+            edit: {
+                featureGroup: drawnItems,
+                remove: false
+            }
+        });
+
+        map.addControl(drawControl);
+
+        // Register zone creation event listener only once
+        if (!zoneEventRegistered) {
+            zoneEventRegistered = true;
+
+            map.on(L.Draw.Event.CREATED, function (e) {
+                const layer = e.layer;
+
+                // Get circle center and radius
+                const center = layer.getLatLng();
+                const radius = layer.getRadius();
+
+                // Get selected category
+                const category = document.getElementById('zone-category').value;
+
+                // Get current user
+                const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
+                const creator = currentUser.email || 'anonymous';
+                const creatorName = currentUser.name || creator.split('@')[0];
+
+                // Create zone object
+                const zone = {
+                    id: 'zone_' + Date.now(),
+                    category: category,
+                    type: 'circle',
+                    center: [center.lat, center.lng],
+                    radius: radius,
+                    creator: creator,
+                    creatorName: creatorName,
+                    createdAt: Date.now(),
+                    description: ''
+                };
+
+                // Save to database
+                ZoneDB.saveZone(zone);
+
+                // Re-render zones
+                renderZones();
+
+                // Stop drawing mode
+                stopDrawing();
+
+                // Show success message
+                alert(`✅ ${getZoneLabel(category)} başarıyla oluşturuldu!`);
+            });
+        }
+    }
+
+    // Custom drag-to-draw variables
+    let customDrawing = false;
+    let drawStartPoint = null;
+    let tempCircle = null;
+
+    // Start drawing mode (CUSTOM DRAG-TO-DRAW)
+    function startDrawing() {
+        // ADDED: Check login state before allowing drawing
+        const userRole = sessionStorage.getItem('userRole');
+        if (!userRole) {
+            alert('⚠️ Bölge işaretlemek için lütfen giriş yapın!');
+            // Optional: Redirect to login page if desired
+            // window.location.href = 'login.html';
+            return;
+        }
+
+        if (!isDrawing) {
+            isDrawing = true;
+            document.getElementById('btn-create-zone').classList.add('active');
+            document.getElementById('btn-create-zone').textContent = '⏹️ Çizimi İptal Et';
+
+            // Show instruction to user
+            alert('ℹ️ Bölge Çizimi:\n\n📍 Haritada bir noktaya tıklayın ve MOUSE TUŞUNU BASILI TUTARAK sürükleyin.\n\n✅ İstediğiniz boyuta geldiğinde mouse tuşunu BIRAKIN.\n\nDaire otomatik olarak kaydedilecektir!');
+
+            // Enable custom drag drawing
+            map.dragging.disable(); // Disable map dragging during zone creation
+
+            // Mouse down - start drawing
+            map.on('mousedown', onDrawMouseDown);
+        } else {
+            stopDrawing();
+        }
+    }
+
+    // Mouse down handler
+    function onDrawMouseDown(e) {
+        if (!isDrawing || customDrawing) return;
+
+        customDrawing = true;
+        drawStartPoint = e.latlng;
+
+        // Create temporary circle
+        const category = document.getElementById('zone-category').value;
+        const color = getZoneColor(category);
+
+        tempCircle = L.circle(drawStartPoint, {
+            radius: 10,
+            color: color.stroke,
+            fillColor: color.fill,
+            fillOpacity: 0.4,
+            weight: 2
+        }).addTo(map);
+
+        // Add mouse move and mouse up handlers
+        map.on('mousemove', onDrawMouseMove);
+        map.on('mouseup', onDrawMouseUp);
+    }
+
+    // Mouse move handler - update circle radius
+    function onDrawMouseMove(e) {
+        if (!customDrawing || !tempCircle || !drawStartPoint) return;
+
+        // Calculate radius
+        const radius = drawStartPoint.distanceTo(e.latlng);
+        tempCircle.setRadius(radius);
+    }
+
+    // Mouse up handler - finalize zone
+    function onDrawMouseUp(e) {
+        if (!customDrawing || !tempCircle || !drawStartPoint) return;
+
+        try {
+            console.log('🎯 Zone creation started...');
+
+            // Calculate final radius
+            const radius = drawStartPoint.distanceTo(e.latlng);
+            console.log('📏 Radius:', radius);
+
+            // Minimum radius check (at least 10 meters)
+            if (radius < 10) {
+                alert('⚠️ Bölge çok küçük! Lütfen daha büyük bir alan çizin.');
+                map.removeLayer(tempCircle);
+                cleanupDrawing();
+                return;
+            }
+
+            // Get selected category
+            const category = document.getElementById('zone-category').value;
+            console.log('📂 Category:', category);
+
+            // Get current user
+            const currentUser = JSON.parse(sessionStorage.getItem('currentUser') || '{}');
+            const creator = currentUser.email || 'anonymous';
+            const creatorName = currentUser.name || creator.split('@')[0];
+            console.log('👤 Creator:', creatorName);
+
+            // Create zone object
+            const zone = {
+                id: 'zone_' + Date.now(),
+                category: category,
+                type: 'circle',
+                center: [drawStartPoint.lat, drawStartPoint.lng],
+                radius: radius,
+                creator: creator,
+                creatorName: creatorName,
+                createdAt: Date.now(),
+                description: ''
+            };
+            console.log('💾 Zone object created:', zone);
+
+            // Save to database
+            ZoneDB.saveZone(zone);
+            console.log('✅ Zone saved to database');
+
+            // Re-render zones BEFORE removing temp circle
+            renderZones();
+            console.log('🎨 Zones re-rendered');
+
+            // Remove temporary circle AFTER rendering
+            map.removeLayer(tempCircle);
+            console.log('🗑️ Temp circle removed');
+
+            // Clean up
+            cleanupDrawing();
+
+            // Stop drawing mode
+            stopDrawing();
+
+            // Show success message
+            alert(`✅ ${getZoneLabel(category)} başarıyla oluşturuldu!`);
+            console.log('🎉 Zone creation completed!');
+
+        } catch (error) {
+            console.error('❌ Error creating zone:', error);
+            alert('❌ Bölge oluşturulurken hata oluştu: ' + error.message);
+
+            // Clean up on error
+            if (tempCircle) {
+                map.removeLayer(tempCircle);
+            }
+            cleanupDrawing();
+            stopDrawing();
+        }
+    }
+
+    // Clean up drawing state
+    function cleanupDrawing() {
+        customDrawing = false;
+        drawStartPoint = null;
+        tempCircle = null;
+
+        // Remove event listeners
+        map.off('mousedown', onDrawMouseDown);
+        map.off('mousemove', onDrawMouseMove);
+        map.off('mouseup', onDrawMouseUp);
+    }
+
+
+    // Stop drawing mode
+    function stopDrawing() {
+        isDrawing = false;
+
+        // Clean up any temporary drawing state
+        if (tempCircle) {
+            map.removeLayer(tempCircle);
+        }
+        cleanupDrawing();
+
+        // Re-enable map dragging
+        map.dragging.enable();
+
+        // Update button
+        document.getElementById('btn-create-zone').classList.remove('active');
+        document.getElementById('btn-create-zone').textContent = '🎨 Bölge Oluştur';
+    }
+
+    // Toggle zones visibility
+    function toggleZonesVisibility() {
+        const btn = document.getElementById('btn-toggle-zones');
+        if (zonesVisible) {
+            map.removeLayer(zoneLayerGroup);
+            zonesVisible = false;
+            btn.textContent = '👁️ Bölgeleri Göster';
+            btn.classList.remove('active');
+        } else {
+            map.addLayer(zoneLayerGroup);
+            zonesVisible = true;
+            btn.textContent = '👁️ Bölgeleri Gizle';
+            btn.classList.add('active');
+        }
+    }
+
+    // Delete zone (exposed to global scope for popup button)
+    window.deleteZone = (zoneId) => {
+        if (confirm('Bu bölgeyi silmek istediğinizden emin misiniz?')) {
+            ZoneDB.deleteZone(zoneId);
+            renderZones();
+            alert('✅ Bölge silindi!');
+        }
+    };
+
+    // Event listeners for zone controls
+    const btnCreateZone = document.getElementById('btn-create-zone');
+    const btnToggleZones = document.getElementById('btn-toggle-zones');
+
+    if (btnCreateZone) {
+        btnCreateZone.addEventListener('click', startDrawing);
+    }
+
+    if (btnToggleZones) {
+        btnToggleZones.addEventListener('click', toggleZonesVisibility);
+        btnToggleZones.classList.add('active'); // Start with zones visible
+    }
+
+    // Initial render of zones
+    // UPDATED: Clear existing zones as requested (one-time or until removed)
+    // To only clear once, you could use a flag, but user said "delete existing", 
+    // implying they want a fresh start.
+    const zonesCleared = localStorage.getItem('petmap_zones_cleanup_v1');
+    if (!zonesCleared) {
+        ZoneDB.clearAllZones();
+        localStorage.setItem('petmap_zones_cleanup_v1', 'true');
+    }
+    renderZones();
+
+    // ===== END ZONE MANAGEMENT SYSTEM =====
+
+
     // --- AI Module Logic (Real Gemini API) ---
     // --- AI Module Logic (Secure Backend Proxy) ---
     // API Key is now hidden in the Python Backend!
@@ -394,92 +906,51 @@ document.addEventListener('DOMContentLoaded', () => {
     const sendBtn = document.getElementById('send-btn');
     const chatWindow = document.getElementById('chat-window');
 
-    // System Prompt for Chat
+    // System Prompt for Chat (Strict Topic Restriction)
     const SYSTEM_PROMPT = `
-    Sen PetMap adında uzman bir veteriner asistanısın. 
-    görevin sadece evcil hayvanlar, hayvan sağlığı ve bakımı hakkında bilgi vermektir.
-    Adın sorulursa "PetMap" olduğunu söyle.
-    Hayvanlar dışındaki konular sorulursa nazikçe cevap veremeyeceğini belirt.
-    Cevapların kısa, net ve yardımsever olsun.
+    Kritik Görev: Sen PetMap adında, sadece evcil hayvanlar, hayvan sağlığı, bakımı ve veterinerlik konularında uzmanlaşmış bir yapay zeka asistanısın. 
+    
+    KURALLAR:
+    1. Konu Sınırı: SADECE hayvanlar, evcil hayvan sağlığı, beslenmesi, davranışı ve PetMap uygulaması hakkında bilgi ver.
+    2. Konu Dışı Engelleme: Eğer kullanıcı hayvanlar dışındaki konular (politika, teknoloji, spor, yemek tarifleri, genel sohbet, felsefe vb.) hakkında soru sorarsa, KESİNLİKLE yanıt verme.
+    3. Uyarı Mesajı: Konu dışı sorularda şu cevabı ver: "Üzgünüm, ben sadece evcil hayvan sağlığı ve bakımı konusunda uzmanlaşmış bir asistanım. Bu konu hakkında bilgi veremem. Size evcil hayvanınızın sağlığı hakkında nasıl yardımcı olabilirim?"
+    4. Kimlik: Adın PetMap. Asla farklı bir kimlik üstlenme.
+    5. Üslup: Kısa, net, profesyonel ve yardımsever ol.
     `;
 
-    // History for Chat
-    let chatHistory = [
-        { role: "user", parts: [{ text: SYSTEM_PROMPT }] },
-        { role: "model", parts: [{ text: "Anlaşıldı. Ben PetMap, sadece hayvan sağlığı konusunda yardımcı olurum." }] }
-    ];
+    // History for Chat (Starts empty to use system_instruction efficiently)
+    let chatHistory = [];
 
-    // Simulated AI Response Generator (No Real API)
-    async function simulateAIResponse(payload) {
-        // Simulate processing delay for realism
-        await new Promise(resolve => setTimeout(resolve, 1500 + Math.random() * 1000));
+    // Real AI Response Handler (through Backend Proxy)
+    async function callGeminiAPI(payload) {
+        try {
+            const response = await fetch(API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
 
-        // Extract user message
-        const contents = payload.contents || [];
-        const lastUserMessage = contents.filter(c => c.role === 'user').pop();
-        const userText = lastUserMessage?.parts?.[0]?.text || '';
+            if (!response.ok) {
+                const errorText = await response.text();
+                if (errorText === "QUOTA_EXCEEDED") return "QUOTA_EXCEEDED";
+                throw new Error(`API Error: ${response.status} ${errorText}`);
+            }
 
-        // Check if it's an image analysis request
-        const hasImage = lastUserMessage?.parts?.some(p => p.inline_data);
+            const data = await response.json();
 
-        if (hasImage) {
-            // Simulated image analysis
-            return generateImageAnalysisResponse();
-        } else {
-            // Simulated chat response
-            return generateChatResponse(userText);
+            // Handle different response structures if necessary
+            // Gemini API return format: { candidates: [ { content: { parts: [ { text: "..." } ] } } ] }
+            if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
+                return data.candidates[0].content.parts[0].text;
+            }
+
+            return JSON.stringify(data); // Return raw if structure is unknown
+        } catch (err) {
+            console.error("AI API Error:", err);
+            return null;
         }
     }
 
-    // Generate realistic chat responses
-    function generateChatResponse(userText) {
-        const text = userText.toLowerCase();
-
-        // Greetings
-        if (text.includes('merhaba') || text.includes('selam') || text.includes('hey')) {
-            return "Merhaba! Ben PetMap yapay zeka asistanıyım. Evcil hayvanınızın sağlığı, beslenmesi, davranışı ve bakımı hakkında size yardımcı olabilirim. Nasıl yardımcı olabilirim? 🐾";
-        }
-
-        // Health questions
-        if (text.includes('hasta') || text.includes('sağlık') || text.includes('hastalık') || text.includes('ateş')) {
-            return "Evcil hayvanınızın sağlık durumu konusunda endişeleriniz varsa, en doğrusu bir veterinere danışmaktır. Ancak genel olarak şu belirtilere dikkat etmelisiniz:\n\n• Ateş (normalden yüksek vücut sıcaklığı)\n• İştah kaybı veya aşırı su içme\n• Halsizlik ve uyuşukluk\n• Kusma veya ishal\n• Davranış değişiklikleri\n\nAcil durumlarda 7/24 veteriner kliniklerine başvurabilirsiniz. 🏥";
-        }
-
-        // Feeding
-        if (text.includes('mama') || text.includes('beslen') || text.includes('yemek') || text.includes('ne yedir')) {
-            return "Evcil hayvanınızın beslenmesi yaşına, ırkına, kilosuna ve sağlık durumuna göre değişir:\n\n**Köpekler için:**\n• Yetişkin: Günde 2 öğün, kaliteli köpek maması\n• Yavru: Günde 3-4 öğün, yavru maması\n• Çikolata, üzüm, soğan ASLA verilmemeli\n\n**Kediler için:**\n• Günde 2-3 öğün, kedi maması\n• Bol su (kediler az su içer, dikkat!)\n• Süt vermekten kaçının (laktoz intoleransı)\n\nVeterinerinizden özel beslenme planı isteyebilirsiniz. 🍽️";
-        }
-
-        // Vaccines
-        if (text.includes('aşı') || text.includes('aşı')) {
-            return "Aşı takvimi hayvanınızın sağlığı için kritik öneme sahiptir:\n\n**Köpekler:**\n• Karma aşı (6-8 haftalık, 3 doz)\n• Kuduz aşısı (3-4 aylık)\n• Yıllık rapel aşıları\n\n**Kediler:**\n• Üçlü aşı (8-9 haftalık, 2 doz)\n• Kuduz aşısı (3-4 aylık)\n• Yıllık rapel aşıları\n\nVeterinerinizle detaylı bir aşı takvimi oluşturun ve takip edin. 💉";
-        }
-
-        // Behavior
-        if (text.includes('davranış') || text.includes('eğitim') || text.includes('tuvalet') || text.includes('ısırıyor')) {
-            return "Davranış sorunları sabır ve tutarlılık gerektirir:\n\n**Genel İpuçları:**\n• Pozitif pekiştirme kullanın (ödül sistemi)\n• Cezalandırmak yerine doğru davranışı öğretin\n• Tutarlı olun, kuralları değiştirmeyin\n• Sosyalleşmeye önem verin\n\n**Tuvalet Eğitimi:**\n• Düzenli çıkarma saatleri belirleyin\n• Doğru yerde tuvalet yaptığında ödüllendirin\n• Sabırlı olun, zaman alır\n\nCiddi davranış sorunları için hayvan davranış uzmanına danışın. 🎓";
-        }
-
-        // Weight/Diet
-        if (text.includes('kilo') || text.includes('şişman') || text.includes('zayıf')) {
-            return "Kilo kontrolü hayvanınızın sağlığı için çok önemlidir:\n\n**Fazla Kilolu:**\n• Porsiyon kontrolü yapın\n• Düzenli egzersiz artırın\n• Atıştırmalıkları azaltın\n• Veteriner diyeti düşünün\n\n**Zayıf:**\n• Mama kalitesini kontrol edin\n• Parazit kontrolü yaptırın\n• Sağlık kontrolü önemli\n• Porsiyon artışı veteriner önerisiyle\n\nİdeal kiloyu veterinerinizle belirleyin. ⚖️";
-        }
-
-        // General
-        return `Anlıyorum, "${userText}" hakkında bilgi istiyorsunuz.\n\nEvcil hayvanınızın sağlığı, beslenmesi, aşıları ve davranışı hakkında daha spesifik sorular sorabilirsiniz. Size en iyi şekilde yardımcı olmak için:\n\n• Hayvanınızın türü, yaşı ve ırkını belirtin\n• Spesifik semptomları veya durumu açıklayın\n• Acil durumlar için mutlaka veterinere başvurun\n\nSize nasıl yardımcı olabilirim? 🐶🐱`;
-    }
-
-    // Generate fixed image analysis response for cross-eyed cat
-    function generateImageAnalysisResponse() {
-        // Fixed response for a cross-eyed cat (şaşı kedi)
-        return JSON.stringify({
-            species: "Şaşı Kedi (Van Kedisi)",
-            condition: "Şaşılık (Strabismus) - Doğuştan Genetik Özellik",
-            severity: "low",
-            recommendation: "Şaşılık Van kedilerinde sık görülen genetik bir özelliktir ve genellikle sağlık sorunu oluşturmaz. Ancak görme keskinliğini etkileyebileceği için düzenli göz muayenesi önerilir. Kedinin çevreye adaptasyonunu gözlemleyin ve ani hareketlerden kaçının. Veteriner kontrolünde göz sağlığı takibi yapılmalıdır.",
-            confidence: 92
-        });
-    }
 
     // Trigger file input
     if (uploadArea) {
@@ -516,20 +987,30 @@ document.addEventListener('DOMContentLoaded', () => {
                     r.readAsDataURL(file);
                 });
 
-                // Prepare Vision Request
+                // Vision Analysis Prompt
                 const prompt = `
-                Bu fotoğraftaki hayvanı analiz et. JSON formatında şu bilgileri ver:
+                GÖREV: Bu evcil hayvan fotoğrafını (kedi, köpek vb.) analiz et ve sonuçları SADECE aşağıdaki JSON formatında döndür. 
+                
+                ANALİZ KURALLARI:
+                1. Hayvanın türünü ve ırkını belirle.
+                2. Herhangi bir sağlık sorunu (göz akıntısı, deri problemi, halsizlik belirtisi vb.) olup olmadığını kontrol et.
+                3. Severity (şiddet) değerini 'none', 'low' veya 'high' olarak belirle. (Örn: Ciddi bir yara varsa 'high', hafif kızarıklık varsa 'low', sağlıklıysa 'none').
+                4. Kullanıcıya kısa ve profesyonel bir öneri ver.
+                
+                JSON FORMATI ÖRNEĞİ:
                 {
-                    "species": "Hayvan Türü (Örn: Tekir Kedi) veya 'Hayvan Yok'",
-                    "condition": "Olası Sağlık Durumu (Sağlıklıysa 'Sağlıklı' yaz)",
-                    "severity": "high" veya "low" (Eğer veteriner şartsa "high"),
-                    "recommendation": "Yapılması gerekenler (1-2 cümle)",
-                    "confidence": "Yüzde kaç emin olduğu (Örn: 95)"
+                    "species": "Golden Retriever Köpek",
+                    "condition": "Sağlıklı",
+                    "severity": "none",
+                    "recommendation": "Düzenli kontrollerine devam edin, diş sağlığına dikkat edin.",
+                    "confidence": 95
                 }
-                Lütfen SADECE JSON döndür. Markdown 'json' tagleri kullanma.
+                
+                NOT: Yanıtında JSON dışında hiçbir metin, açıklama veya markdown kodu (json yazısı hariç) BULUNMAMALIDIR.
                 `;
 
                 const payload = {
+                    system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
                     contents: [{
                         parts: [
                             { text: prompt },
@@ -538,27 +1019,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     }]
                 };
 
-                const resultText = await simulateAIResponse(payload);
+                const resultText = await callGeminiAPI(payload);
 
-                // HANDLE QUOTA EXCEEDED OR CONNECTION ERROR - USE FALLBACK
+                // HANDLE QUOTA EXCEEDED OR CONNECTION ERROR
                 if (resultText === "QUOTA_EXCEEDED" || !resultText) {
-                    // Fallback: Show general advice
-                    document.getElementById('result-breed').innerText = "Fotoğraf Yüklendi";
-                    document.getElementById('result-disease').innerText = "Genel Değerlendirme";
-                    document.getElementById('result-disease').style.color = '#0284c7';
-                    document.getElementById('result-recommendation').innerHTML = `
-                        <strong>Genel Öneriler:</strong><br>
-                        • Evcil hayvanınızı düzenli olarak veteriner kontrolüne götürün<br>
-                        • Aşı takvimini takip edin<br>
-                        • Beslenme ve su alımını kontrol edin<br>
-                        • Davranış değişikliklerini gözlemleyin<br>
-                        • Acil durumlarda hemen veterinere başvurun
-                    `;
-                    document.getElementById('result-confidence').innerHTML = `<em style="color: #f59e0b;">ℹ️ AI analizi şu anda kullanılamıyor</em>`;
-                    document.getElementById('vet-btn').style.display = 'none';
-
                     scanningOverlay.style.display = 'none';
                     aiResult.style.display = 'block';
+                    aiResult.innerHTML = `<div style="padding: 20px; color: #721c24; background: #f8d7da; border-radius: 12px; margin-top: 15px;">
+                        <strong>⚠️ API Bağlantı Hatası:</strong><br>
+                        Lütfen backend sunucusunda API anahtarının (.env) doğru şekilde yapılandırıldığından emin olun.
+                    </div>`;
                     return;
                 }
 
@@ -624,40 +1094,8 @@ document.addEventListener('DOMContentLoaded', () => {
         chatWindow.scrollTop = chatWindow.scrollHeight;
     }
 
-    // Fallback Chat Responses (when API is unavailable)
-    function getFallbackResponse(userText) {
-        const text = userText.toLowerCase();
 
-        // Greetings
-        if (text.includes('merhaba') || text.includes('selam') || text.includes('hey')) {
-            return "Merhaba! Ben PetMap asistanıyım. Evcil hayvanınız hakkında size nasıl yardımcı olabilirim? 🐾";
-        }
-
-        // Health questions
-        if (text.includes('hasta') || text.includes('sağlık') || text.includes('hastalık')) {
-            return "Evcil hayvanınızın sağlık durumu konusunda endişeleriniz varsa, en doğrusu bir veterinere danışmaktır. Acil durumlarda 7/24 veteriner kliniklerine ulaşabilirsiniz. 🏥";
-        }
-
-        // Feeding
-        if (text.includes('mama') || text.includes('beslen') || text.includes('yemek')) {
-            return "Evcil hayvanınızın yaşına, ırkına ve sağlık durumuna uygun mama seçimi çok önemlidir. Veterinerinizden özel bir beslenme planı isteyebilirsiniz. 🍽️";
-        }
-
-        // Vaccines
-        if (text.includes('aşı') || text.includes('aşı')) {
-            return "Düzenli aşı takvimine uymak hayvanınızın sağlığı için çok önemlidir. Köpekler için kuduz, karma aşı; kediler için üçlü aşı temel aşılardandır. Veterinerinizle aşı takvimi oluşturun. 💉";
-        }
-
-        // Behavior
-        if (text.includes('davranış') || text.includes('eğitim') || text.includes('tuvalet')) {
-            return "Davranış sorunları için sabır ve tutarlılık önemlidir. Pozitif pekiştirme yöntemi kullanarak eğitim verin. Ciddi durumlarda hayvan davranış uzmanına danışabilirsiniz. 🎓";
-        }
-
-        // General
-        return "Size yardımcı olmak isterim! Evcil hayvanınızın sağlığı, beslenmesi, aşıları veya davranışı hakkında daha spesifik sorular sorabilirsiniz. Acil durumlar için mutlaka veterinere başvurun. 🐶🐱";
-    }
-
-    // New Named Function for Chat with Fallback
+    // Removal of fallback logic to ensure only real AI responses are used
     async function handleChatSend() {
         const text = chatInput.value.trim();
         if (!text) return;
@@ -674,8 +1112,9 @@ document.addEventListener('DOMContentLoaded', () => {
         // 2. Add to History
         chatHistory.push({ role: "user", parts: [{ text: text }] });
 
-        // 3. Use Simulated AI
+        // 3. Use Backend Proxy API with System Instruction
         const payload = {
+            system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
             contents: chatHistory,
             generationConfig: {
                 maxOutputTokens: 500,
@@ -683,17 +1122,20 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        const responseText = await simulateAIResponse(payload);
+        const responseText = await callGeminiAPI(payload);
 
         // Remove loading
         loadingMsg.remove();
 
-        // 4. Handle Response with Fallback
-        if (responseText === "QUOTA_EXCEEDED" || !responseText) {
-            // Use fallback response
-            const fallbackText = getFallbackResponse(text);
-            chatHistory.push({ role: "model", parts: [{ text: fallbackText }] });
-            addBotMessage(fallbackText + "\n\n_ℹ️ Not: AI bağlantısı şu anda kullanılamıyor, genel bilgiler veriyorum._");
+        // 4. Handle Response (No more local fallback)
+        if (responseText === "QUOTA_EXCEEDED") {
+            const errorMsg = "⚠️ Tüm AI modellerinin kotası doldu. Lütfen daha sonra tekrar deneyiniz.";
+            chatHistory.push({ role: "model", parts: [{ text: errorMsg }] });
+            addBotMessage(errorMsg);
+        } else if (!responseText) {
+            const errorMsg = "❌ AI bağlantısı kurulamadı. Lütfen internet bağlantınızı ve API anahtarını kontrol edin.";
+            chatHistory.push({ role: "model", parts: [{ text: errorMsg }] });
+            addBotMessage(errorMsg);
         } else {
             // Real AI response
             chatHistory.push({ role: "model", parts: [{ text: responseText }] });

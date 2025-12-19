@@ -329,6 +329,8 @@ input[type="range"] {
 .map-container {
     flex: 1;
     /* Take remaining space */
+    min-width: 0;
+    /* Allow flexbox to shrink if needed */
     height: 100%;
     background: #eef2f3;
     position: relative;
@@ -346,8 +348,11 @@ input[type="range"] {
     right: auto;
     background: white;
     padding: 20px;
-    width: 320px;
+    width: 280px;
+    /* Reduced from 320px */
     /* Fixed width sidebar */
+    flex-shrink: 0;
+    /* Don't shrink */
     height: 100%;
     border-left: 1px solid #eee;
     display: flex;
@@ -554,6 +559,204 @@ input[type="range"] {
     flex: 1;
     /* Fills remaining height in flex container */
     z-index: 1;
+}
+
+
+/* Zone Control Sidebar (Left Side) - Outside map as separate column */
+.zone-sidebar {
+    position: static;
+    /* Changed from absolute */
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    padding: 15px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+    min-width: 220px;
+    max-width: 220px;
+    flex-shrink: 0;
+    /* Don't shrink */
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-right: 15px;
+    /* Space between sidebar and map */
+}
+
+.zone-sidebar-title {
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--dark);
+    margin: 0 0 5px 0;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #eee;
+}
+
+.zone-select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #555;
+    background: white;
+    cursor: pointer;
+    transition: all 0.2s;
+    outline: none;
+}
+
+.zone-select:hover {
+    border-color: var(--primary);
+}
+
+.zone-select:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.zone-btn {
+    width: 100%;
+    background: #f8f9fa;
+    border: 1px solid #ddd;
+    padding: 10px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: #555;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.zone-btn:hover {
+    background: #e9ecef;
+    transform: translateY(-1px);
+}
+
+.zone-btn.active {
+    background: var(--success);
+    color: white;
+    border-color: var(--success);
+    box-shadow: 0 4px 10px rgba(40, 167, 69, 0.3);
+}
+
+.zone-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Zone Legend - Now below zone controls */
+.zone-legend {
+    position: static;
+    /* Changed from absolute */
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    padding: 15px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+    min-width: 220px;
+    max-width: 220px;
+    margin-top: 15px;
+    /* Space from zone controls */
+}
+
+.legend-title {
+    font-weight: 700;
+    font-size: 0.95rem;
+    margin-bottom: 10px;
+    color: var(--dark);
+    border-bottom: 2px solid #eee;
+    padding-bottom: 8px;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 8px 0;
+    font-size: 0.85rem;
+    color: #555;
+}
+
+.legend-color {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    border: 1px solid rgba(0, 0, 0, 0.2);
+    flex-shrink: 0;
+}
+
+/* Leaflet.draw Customizations */
+.leaflet-draw-toolbar a {
+    background-color: #fff;
+    border: 1px solid #ddd;
+}
+
+.leaflet-draw-toolbar a:hover {
+    background-color: var(--primary);
+}
+
+.leaflet-draw-actions a {
+    background-color: #fff;
+    border: 1px solid #ddd;
+}
+
+/* Zone Polygon Styles */
+.zone-polygon-dangerous {
+    fill: rgba(255, 68, 68, 0.4);
+    stroke: rgba(255, 68, 68, 0.8);
+    stroke-width: 2;
+}
+
+.zone-polygon-safe {
+    fill: rgba(68, 255, 68, 0.4);
+    stroke: rgba(68, 255, 68, 0.8);
+    stroke-width: 2;
+}
+
+.zone-polygon-fun {
+    fill: rgba(68, 136, 255, 0.4);
+    stroke: rgba(68, 136, 255, 0.8);
+    stroke-width: 2;
+}
+
+/* Zone Popup Styles */
+.zone-popup {
+    min-width: 200px;
+}
+
+.zone-popup-header {
+    font-weight: 700;
+    font-size: 1rem;
+    margin-bottom: 8px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #eee;
+}
+
+.zone-popup-info {
+    font-size: 0.85rem;
+    color: #666;
+    margin: 5px 0;
+}
+
+.zone-popup-delete {
+    margin-top: 10px;
+    padding: 6px 12px;
+    background: var(--danger);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 600;
+    transition: background 0.2s;
+}
+
+.zone-popup-delete:hover {
+    background: #c82333;
 }
 
 /* AI Module Styles */

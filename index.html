@@ -12,10 +12,18 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <link rel="stylesheet" href="css/style.css?v=2.0">
+    <!-- Leaflet.draw for zone drawing -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"
+        integrity="sha512-gc3xjCmIy673V6MyOAZhIW93xhM9ei1I+gLbmFjUHIjocENRsLX/QUE1htk5q1XV2D/iie/VQ8DXI6Vu8bexvQ=="
+        crossorigin="anonymous" />
+    <link rel="stylesheet" href="css/style.css?v=3.6">
     <link rel="stylesheet" href="css/animations.css">
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- Leaflet.draw for zone drawing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"
+        integrity="sha512-ozq8xQKq6urvuU6jNgkfqAmT7jKN2XumbrX1JiB3TnF7tI48DPI4Gy1GXKD/V3EExgAs1V+pRO7vwtS1LHg0Gw=="
+        crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 
@@ -136,6 +144,35 @@
         <div class="container">
             <h2 class="section-title">PetMap</h2>
             <div class="map-interface">
+                <!-- Zone Control Sidebar (Left Side) - Now outside map -->
+                <div class="zone-sidebar">
+                    <h4 class="zone-sidebar-title">Bölge Kontrolleri</h4>
+                    <select id="zone-category" class="zone-select">
+                        <option value="dangerous">🔴 Tehlikeli</option>
+                        <option value="safe">🟢 Güvenli</option>
+                        <option value="fun">🔵 Eğlenceli</option>
+                    </select>
+                    <button id="btn-create-zone" class="zone-btn">🎨 Bölge Oluştur</button>
+                    <button id="btn-toggle-zones" class="zone-btn">👁️ Bölgeleri Gizle</button>
+
+                    <!-- Zone Legend -->
+                    <div class="zone-legend">
+                        <div class="legend-title">Topluluk Bölgeleri</div>
+                        <div class="legend-item">
+                            <span class="legend-color" style="background: rgba(255, 68, 68, 0.6);"></span>
+                            <span>Tehlikeli (kuduz, mikrop, pis)</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color" style="background: rgba(68, 255, 68, 0.6);"></span>
+                            <span>Güvenli (evcil hayvan dostu)</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color" style="background: rgba(68, 136, 255, 0.6);"></span>
+                            <span>Eğlenceli (park, oyun alanı)</span>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Map Visual Placeholder -->
                 <div class="map-container">
                     <!-- POI Filter Menu (Top Bar) -->
@@ -146,6 +183,8 @@
                         <button id="btn-park" class="poi-btn" onclick="togglePOI('park')">🌳 Hayvan Parkı</button>
                     </div>
 
+
+
                     <div id="city-map">
                         <!-- Leaflet Map will be injected here -->
                     </div>
@@ -153,7 +192,7 @@
 
                 <!-- Risk Score Panel -->
                 <div class="map-panel">
-                    <h3>Bulunduğunuz Bölge (Simüle)</h3>
+                    <h3>Bulunduğunuz Bölge (AI Destekli)</h3>
                     <div class="score-display">
                         <span class="score-label">Mesafe:</span>
                         <span id="distance-val" class="score-value">0.5 km</span>
@@ -401,7 +440,7 @@
     </div>
 
     <script src="js/pets.js"></script>
-    <script src="js/petmap_v2.js?v=2.0"></script>
+    <script src="js/petmap_v2.js?v=3.3"></script>
     <script>
         // Populate pet module on homepage
         document.addEventListener('DOMContentLoaded', function () {

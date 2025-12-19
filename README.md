@@ -14,12 +14,27 @@ PetMap, evcil hayvan sahipleri, veterinerler, barınaklar ve hayvanseverler içi
 - Fotoğraf galerisi
 
 ### 🤖 AI Destekli Sağlık Asistanı
-- **Fotoğraf Analizi**: Hayvan fotoğraflarını analiz ederek olası sağlık sorunlarını tespit eder
-- **Sohbet Asistanı**: Sağlık, beslenme ve davranış konularında akıllı yanıtlar
+- **Fotoğraf Analizi**: Hayvan fotoğraflarını analiz ederek olası sağlık sorunlarını tespit eder (Gerçek Gemini Vision API entegrasyonu)
+- **Sohbet Asistanı**: Sağlık, beslenme ve davranış konularında akıllı yanıtlar (Gerçek Gemini Chat API entegrasyonu)
 - **Sağlık Trendi Analizi**: Ağırlık, aktivite ve iştah verilerini grafiklerle görselleştirir
 - **Akıllı Öneriler**: Kişiselleştirilmiş bakım önerileri
 
-> **Not**: Tüm AI özellikleri simüle edilmiştir ve harici API çağrısı yapmaz. Gerçek bir AI entegrasyonu için backend geliştirmesi gereklidir.
+> [!IMPORTANT]
+> **PetMap v2.0 AI Entegrasyonu**: Bu sürümde simüle edilmiş AI yerine gerçek Google Gemini API entegrasyonuna geçilmiştir. Uygulama, Türkiye'de ücretsiz olarak sunulan aşağıdaki 13 farklı modeli sırayla deneyerek en hızlı ve uygun yanıtı sağlar:
+> 
+> 1. `gemini-2.5-flash`
+> 2. `gemini-flash-latest`
+> 3. `gemini-flash-lite-latest`
+> 4. `gemini-2.5-flash-lite`
+> 5. `gemma-3-1b-it`
+> 6. `gemma-3-4b-it`
+> 7. `gemma-3-27b-it`
+> 8. `gemma-3n-e4b-it`
+> 9. `gemma-3n-e2b-it`
+> 10. `gemini-3-flash-preview`
+> 11. `gemini-2.5-flash-preview-09-2025`
+> 12. `gemini-2.5-flash-lite-preview-09-2025`
+> 13. `gemini-robotics-er-1.5-preview`
 
 ### 📍 PetMap - Konum Takibi
 - Gerçek zamanlı harita üzerinde hayvan konumu
