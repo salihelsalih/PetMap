@@ -38,7 +38,7 @@ function injectSettingsUI() {
         settingsBtn.innerHTML = '⚙️';
         settingsBtn.onclick = openSettings;
         settingsBtn.title = 'Ayarlar';
-        nav.prepend(settingsBtn);
+        nav.appendChild(settingsBtn);
     }
 }
 
