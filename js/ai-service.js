@@ -57,32 +57,26 @@ async function callGeminiAPI(payload) {
                     const status = response.status;
                     const errMsg = errorData.error?.message || "Unknown error";
 
-                    console.warn(`⚠️ Error ${status} with ${apiVersion}/${modelName}:`, errMsg);
-
                     if (status === 429) {
+                        console.warn(`🛑 [KOTA DOLU] ${apiVersion}/${modelName} kotası doldu. Liste üzerindeki bir sonraki modele geçiliyor...`);
                         lastError = "QUOTA_EXCEEDED";
-                        // If quota is exceeded, trying another version of the same model usually doesn't help
-                        break;
                     } else if (status === 404) {
+                        console.warn(`📍 [MODEL BULUNAMADI] ${apiVersion}/${modelName} bu sürümde mevcut değil.`);
                         lastError = `NOT_FOUND: ${apiVersion}/${modelName}`;
-                        continue; // Try next version of same model
                     } else {
+                        console.error(`❌ [HATA ${status}] ${apiVersion}/${modelName}:`, errMsg);
                         lastError = `API_ERROR_${status}: ${errMsg}`;
-                        continue; // Try next version or model
                     }
+                    // Keep going to next model/version
                 }
             } catch (err) {
                 console.error(`🚀 Connection failed for ${apiVersion}/${modelPath}:`, err);
                 lastError = `FETCH_FAILED: ${err.message}`;
-                continue;
             }
         }
-
-        // If we got a result or if quota is exceeded, don't try other models if we already have a quota issue
-        if (lastError === "QUOTA_EXCEEDED") break;
     }
 
-    console.error(`💀 All models failed. Last error: ${lastError}`);
+    console.error(`💀 Tüm modeller başarısız oldu. Son hata: ${lastError}`);
     return lastError === "QUOTA_EXCEEDED" ? "QUOTA_EXCEEDED" : null;
 }
 
