@@ -940,35 +940,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // History for Chat (Starts empty to use system_instruction efficiently)
     let chatHistory = [];
 
-    // Real AI Response Handler (through Backend Proxy)
-    async function callGeminiAPI(payload) {
-        try {
-            const response = await fetch(API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                if (errorText === "QUOTA_EXCEEDED") return "QUOTA_EXCEEDED";
-                throw new Error(`API Error: ${response.status} ${errorText}`);
-            }
-
-            const data = await response.json();
-
-            // Handle different response structures if necessary
-            // Gemini API return format: { candidates: [ { content: { parts: [ { text: "..." } ] } } ] }
-            if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts) {
-                return data.candidates[0].content.parts[0].text;
-            }
-
-            return JSON.stringify(data); // Return raw if structure is unknown
-        } catch (err) {
-            console.error("AI API Error:", err);
-            return null;
-        }
-    }
 
 
     // Trigger file input
@@ -1008,28 +980,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 // Vision Analysis Prompt
                 const prompt = `
-                GÖREV: Bu evcil hayvan fotoğrafını (kedi, köpek vb.) analiz et ve sonuçları SADECE aşağıdaki JSON formatında döndür. 
+                GÖREV: Bu evcil hayvan fotoğrafını bir veteriner titizliğiyle analiz et. 
                 
-                ANALİZ KURALLARI:
-                1. Hayvanın türünü ve ırkını belirle.
-                2. Herhangi bir sağlık sorunu (göz akıntısı, deri problemi, halsizlik belirtisi vb.) olup olmadığını kontrol et.
-                3. Severity (şiddet) değerini 'none', 'low' veya 'high' olarak belirle. (Örn: Ciddi bir yara varsa 'high', hafif kızarıklık varsa 'low', sağlıklıysa 'none').
-                4. Kullanıcıya kısa ve profesyonel bir öneri ver.
+                KLİNİK GÖZLEM ADIMLARI:
+                1. IRK TESPİTİ: Hayvanın türünü ve tam ırkını (breed) belirle. (Örn: "British Shorthair", "Sokak Kedisi", "Sivas Kangalı").
+                2. GÖZ MUAYENESİ: Göz bebeklerinin hizasını kontrol et. Şaşılık (strabismus), kayma, pupil eşitsizliği, akıntı veya aşırı kızarıklık var mı?
+                3. DERİ VE TÜY: Bölgesel tüy dökülmesi, yara, kızarıklık veya matlaşma var mı?
+                4. DURUŞ: Hayvanın genel duruşunda bir acı veya dengesizlik belirtisi var mı?
                 
-                JSON FORMATI ÖRNEĞİ:
+                ÇIKTI KURALLARI:
+                - En ufak bir anormallik (örn. hafif şaşılık) varsa 'condition' alanında belirt ve 'severity' değerini 'low' veya 'high' yap.
+                - SADECE aşağıdaki JSON formatında yanıt ver. 
+                
+                JSON FORMATI:
                 {
-                    "species": "Golden Retriever Köpek",
-                    "condition": "Sağlıklı",
-                    "severity": "none",
-                    "recommendation": "Düzenli kontrollerine devam edin, diş sağlığına dikkat edin.",
-                    "confidence": 95
+                    "species": "Irk ve Tür",
+                    "condition": "Tespit edilen tüm belirtiler veya 'Sağlıklı Görünüyor'",
+                    "severity": "none|low|high",
+                    "recommendation": "Spesifik öneri",
+                    "confidence": 0-100
                 }
                 
-                NOT: Yanıtında JSON dışında hiçbir metin, açıklama veya markdown kodu (json yazısı hariç) BULUNMAMALIDIR.
+                NOT: Analizinde çok dikkatli ol, özellikle göz hizasına ve tüy yapısına odaklan. JSON dışında metin yazma.
                 `;
 
                 const payload = {
-                    system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
                     contents: [{
                         parts: [
                             { text: prompt },
@@ -1038,7 +1013,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     }]
                 };
 
-                const resultText = await callGeminiAPI(payload);
+                const resultText = await window.callGeminiAPI(payload);
 
                 // HANDLE QUOTA EXCEEDED OR CONNECTION ERROR
                 if (resultText === "QUOTA_EXCEEDED" || !resultText) {
@@ -1046,7 +1021,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     aiResult.style.display = 'block';
                     aiResult.innerHTML = `<div style="padding: 20px; color: #721c24; background: #f8d7da; border-radius: 12px; margin-top: 15px;">
                         <strong>⚠️ API Bağlantı Hatası:</strong><br>
-                        Lütfen backend sunucusunda API anahtarının (.env) doğru şekilde yapılandırıldığından emin olun.
+                        Lütfen Ayarlar (⚙️) menüsünden API anahtarınızın doğru ve geçerli olduğundan emin olun. 
+                        Konsol (F12) üzerindeki hata mesajlarını kontrol ederek daha fazla detay görebilirsiniz.
                     </div>`;
                     return;
                 }
@@ -1147,7 +1123,12 @@ document.addEventListener('DOMContentLoaded', () => {
         loadingMsg.remove();
 
         // 4. Handle Response (No more local fallback)
-        if (responseText === "QUOTA_EXCEEDED") {
+        if (responseText === "NO_API_KEY") {
+            const errorMsg = "⚠️ Gemini API Anahtarı bulunamadı. Lütfen sağ üstteki ⚙️ Ayarlar butonundan anahtarınızı girin.";
+            chatHistory.push({ role: "model", parts: [{ text: errorMsg }] });
+            addBotMessage(errorMsg);
+            if (typeof openSettings === 'function') openSettings();
+        } else if (responseText === "QUOTA_EXCEEDED") {
             const errorMsg = "⚠️ Tüm AI modellerinin kotası doldu. Lütfen daha sonra tekrar deneyiniz.";
             chatHistory.push({ role: "model", parts: [{ text: errorMsg }] });
             addBotMessage(errorMsg);

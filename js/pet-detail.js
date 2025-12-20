@@ -603,6 +603,12 @@ Türkçe, profesyonel ve detaylı bir analiz yap. Yanıtını markdown formatın
             }]
         });
 
+        if (analysis === "NO_API_KEY") {
+            alert("⚠️ Gemini API Anahtarı eksik! Lütfen Ayarlar'dan anahtarınızı girin.");
+            if (typeof openSettings === 'function') openSettings();
+            return;
+        }
+
         if (!analysis) {
             throw new Error(`AI connection failed`);
         }
@@ -665,18 +671,13 @@ async function refreshAIAlerts(optionalContext = "") {
     `;
 
     try {
-        const response = await fetch('/api/gemini', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }] }]
-            })
-        });
+        const payload = {
+            contents: [{ parts: [{ text: prompt }] }]
+        };
+        const responseText = await window.callGeminiAPI(payload);
 
-        const data = await response.json();
-        if (data.candidates && data.candidates[0]) {
-            let text = data.candidates[0].content.parts[0].text;
-            let cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        if (responseText) {
+            let cleanJson = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
             const alerts = JSON.parse(cleanJson);
 
             if (Array.isArray(alerts)) {
